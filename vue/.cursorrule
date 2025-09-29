@@ -1,0 +1,101 @@
+### 前端架构建议
+（使用SAM分割牙齿图像，并支持后续3D模型重建），前端采用Vue 3技术栈是一个很好的选择。它支持组件化开发、响应式UI和易于集成后端API（如通过Axios调用SAM分割接口和3D重建服务）。我假设这是一个单页应用（SPA），后端负责核心计算（SAM分割和3D重建），前端主要处理用户交互、图像上传/显示和3D渲染。
+
+#### 整体架构概述
+- **技术栈**：
+  - **框架**：Vue 3（Composition API推荐，便于逻辑复用）。
+  - **路由**：Vue Router（处理页面导航）。
+  - **状态管理**：Pinia（轻量级，适合管理上传的图像数据、分割结果和3D模型状态）。
+  - **UI库**：Element Plus 
+  - **图像处理**：Canvas API 或 Fabric.js（用于2D图像显示和分割掩码叠加）。
+  - **3D渲染**：Three.js（集成到Vue中，用于显示重建的3D牙齿模型，支持旋转、缩放等交互）。
+  - **HTTP客户端**：Axios（与后端API交互，如上传图像、获取分割结果）。
+  - **构建工具**：Vue CLI 或 Vite（推荐Vite，构建更快）。
+  - **其他**：文件上传插件如vue-upload-component；如果需要实时预览，可集成WebSocket。前端在本地8080端口。
+
+- **项目结构**（示例）：
+  ```
+  src/
+  ├── views/          # 页面视图（路由对应）
+  │   ├── Login.vue
+  │   ├── Dashboard.vue
+  │   ├── UploadImage.vue
+  │   ├── SegmentationResult.vue
+  │   └── ModelViewer.vue
+  ├── components/     # 共享组件
+  │   ├── ImageUploader.vue
+  │   ├── SegmentationOverlay.vue
+  │   ├── ThreeDModel.vue
+  │   └── Header.vue
+  ├── stores/         # Pinia状态仓库
+  │   └── appStore.js  # 管理用户、图像、结果状态
+  ├── router/         # 路由配置
+  ├── api/            # API接口封装
+  └── App.vue         # 根组件
+  ```
+
+- **数据流**：
+  1. 用户上传图像 → 前端校验并发送到后端（SAM分割）。
+  2. 后端返回分割掩码（JSON或图像URL） → 前端渲染2D叠加预览。
+  3. 用户确认后，发送到后端重建3D模型 → 前端加载并渲染3D视图。
+  4. 状态通过Pinia全局管理，支持历史记录和多步导航。
+
+- **关键考虑**：
+  - **安全性**：图像上传需校验大小/格式（e.g., JPG/PNG < 10MB），后端处理敏感数据。
+  - **性能**：3D渲染用Three.js的WebGL，避免大图像导致卡顿；懒加载组件。
+  - **响应式**：使用Vue的响应式数据，确保移动端友好。
+  - **认证**：如果多用户，集成JWT token（登录后存储在localStorage）。
+
+#### 前端需要的页面（Views）
+每个页面对应一个Vue Router路由，使用`<router-view>`在App.vue中渲染。
+
+1. **登录/注册页面 (Login.vue)**  
+   - **目的**：用户认证（可选，如果系统需账号管理）。  
+   - **功能**：用户名/密码输入、注册表单、忘记密码链接。  
+   - **组件**：表单（Element Plus的el-form）、按钮。  
+   - **路由**：`/login`（守卫：未登录时重定向到此）。  
+   - **交互**：提交后调用API登录，成功跳转到Dashboard。
+
+2. **仪表板/首页 (Dashboard.vue)**  
+   - **目的**：系统入口，展示用户历史操作或快速入口。  
+   - **功能**：欢迎信息、最近处理记录列表（图像/模型缩略图）、开始新任务按钮。  
+   - **组件**：卡片列表（el-card）、表格（el-table显示历史）。  
+   - **路由**：`/`（默认，守卫：已登录）。  
+   - **交互**：点击“新分割”跳转到上传页面；从历史点击加载旧结果。
+
+3. **图像上传页面 (UploadImage.vue)**  
+   - **目的**：用户上传牙齿图像，进行初步预览。  
+   - **功能**：拖拽/点击上传、图像预览、格式校验（牙齿图像提示）。  
+   - **组件**：ImageUploader（自定义，支持多图上传）、进度条（el-progress）。  
+   - **路由**：`/upload`。  
+   - **交互**：上传成功后，自动调用后端SAM API分割，跳转到结果页面；支持取消/重传。
+
+4. **分割结果页面 (SegmentationResult.vue)**  
+   - **目的**：显示SAM分割后的牙齿掩码，允许用户调整/确认。  
+   - **功能**：原图 + 掩码叠加显示（可切换透明度）、牙齿区域高亮、编辑工具（简单裁剪）。  
+   - **组件**：SegmentationOverlay（用Canvas绘制掩码）、滑块（调整叠加层）。  
+   - **路由**：`/segmentation/:imageId`（动态参数传递图像ID）。  
+   - **交互**：确认后发送到后端重建3D，跳转到模型页面；返回编辑或保存结果。
+
+5. **3D模型查看页面 (ModelViewer.vue)**  
+   - **目的**：显示重建的3D牙齿模型，支持交互查看。  
+   - **功能**：3D渲染（旋转、缩放、截面视图）、导出模型（OBJ/GLTF格式下载）。  
+   - **组件**：ThreeDModel（集成Three.js的Vue wrapper，如vue-threejs）。  
+   - **路由**：`/model/:modelId`。  
+   - **交互**：加载后端返回的3D文件URL；工具栏（重置视图、截图）；返回仪表板保存历史。
+
+#### 扩展建议
+- **共享组件**：
+  - Header.vue：顶部导航（首页、上传、历史、登出）。
+  - Footer.vue：版权/帮助链接。
+  - Modal dialogs：用于确认、错误提示（el-dialog）。
+
+- **路由守卫**：在router/index.js中添加beforeEach，检查登录状态和权限。
+
+- **开发流程**：
+  1. 初始化项目：`npm create vue@latest`。
+  2. 安装依赖：`npm i vue-router pinia axios element-plus three @vueuse/core`。
+  3. 先实现核心页面（上传 → 分割 → 3D），用Mock数据测试。
+  4. 集成后端：定义api/segmentation.js 等模块封装请求。
+  5. 测试：用Vitest单元测试组件；E2E用Cypress模拟用户流。
+
