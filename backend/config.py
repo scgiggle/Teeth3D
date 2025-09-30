@@ -22,7 +22,7 @@ class Settings:
     MYSQL_PORT: int = int(os.getenv('MYSQL_PORT', 3306))
     MYSQL_USER: str = os.getenv('MYSQL_USER', 'root')
     MYSQL_PASSWORD: str = os.getenv('MYSQL_PASSWORD', '123456')
-    MYSQL_DB: str = os.getenv('MYSQL_DB', 'teeth_reconstruction')
+    MYSQL_DB: str = os.getenv('MYSQL_DB', 'teethdreamer')
 
     @property
     def DATABASE_URL(self) -> str:
