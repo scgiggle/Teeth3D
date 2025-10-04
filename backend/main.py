@@ -24,6 +24,16 @@ async def lifespan(app: FastAPI):
         db=int(os.getenv('REDIS_DB', 0)),
         decode_responses=True
     )
+
+    # 尝试预加载 SAM2 模型（非阻塞启动，失败仅记录）
+    try:
+        # call function to initialize and cache model
+        segmentation.get_sam2_model_and_predictor()
+        print("SAM2 model preload attempted")
+    except Exception as e:
+        # 不阻塞启动，只记录，以便开发时查看原因
+        print(f"Warning: SAM2 model preload failed: {e}")
+
     yield
     # 关闭时清理资源
     if redis_client:
