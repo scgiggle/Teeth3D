@@ -70,6 +70,86 @@
         </div>
       </el-tab-pane>
 
+      <el-tab-pane label="牙齿分割" name="segment">
+        <div class="segment-container">
+          <div class="left-panel">
+            <div class="controls">
+              <div>
+                <div class="tool-accordion">
+                  <div class="tool-item">
+                    <div :class="['tool-header', { active: activeTool === 'hover' }]" @click="activeTool = activeTool === 'hover' ? null : 'hover'">
+                      <span class="icon">🖱️</span>
+                      <span class="title">点击方式</span>
+                    </div>
+                    <div class="tool-body" v-show="activeTool === 'hover'">
+                      <div class="usage-line">左键: 选中区域</div>
+                      <div class="usage-line">右键: 删除区域</div>
+                    </div>
+                  </div>
+
+                  <div class="tool-item">
+                    <div :class="['tool-header', { active: activeTool === 'box' }]" @click="activeTool = activeTool === 'box' ? null : 'box'">
+                      <span class="icon" style="margin-left:3px">▢</span>
+                      <span class="title" style="margin-left:4px">框选方式</span>
+                    </div>
+                    <div class="tool-body" v-show="activeTool === 'box'">
+                      <div class="usage-line">拖拽以框选区域</div>
+                      <div class="usage-line"></div>
+                    </div>
+                  </div>
+                  <el-divider/>
+                  <div class="opacity-label">透明度设置</div>
+                  <div class="opacity-row">
+                    <el-slider v-model="opacity" :min="0" :max="1" :step="0.01" :format-tooltip="formatOpacity" />
+                    <div class="opacity-display">{{ formatOpacity(opacity) }}</div>
+                  </div>
+                  <div class="tool-actions">
+                    <el-button class="full-btn" @click="undo">
+                      <el-icon><ArrowLeftBold /></el-icon>
+                      回退
+                    </el-button>
+                    <el-button class="full-btn" @click="resetSegmentation">
+                      <el-icon><CloseBold /></el-icon>
+                      重置
+                    </el-button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="right-panel">
+              <div class="thumb-row" v-if="displayedImages.length">
+                <div v-for="(t, i) in displayedImages" :key="i" class="thumb-item" @click="onThumbClick(i)">
+                  <img :src="t" class="thumb-small" :class="{ active: i === currentImageIndex }" />
+                </div>
+              </div>
+              <div class="img-wrap" ref="imgWrap" @mousedown="onImgMouseDown" @contextmenu.prevent>
+                <div class="media-box">
+                  <transition name="fade" mode="out-in">
+                    <img key="main-{{ currentImageIndex }}" ref="dogImg" :src="displayedImages[currentImageIndex] || dogSrc" alt="dog" class="dog-img" />
+                  </transition>
+                  <transition name="fade">
+                    <img v-if="overlaySrc && !hideOverlay" :src="overlaySrc" alt="overlay" class="overlay-img" />
+                  </transition>
+
+                  <div class="actions-row" style="margin-top: 15px">
+                    <div class="actions-left">
+                      <el-button :disabled="!hasImages" @click="prevImage">上一张</el-button>
+                      <span>{{ displayIndexText }}</span>
+                      <el-button :disabled="!hasImages" @click="nextImage">下一张</el-button>
+                    </div>
+                    <div class="actions-right">
+                      <el-button>返回</el-button>
+                      <el-button type="primary" :disabled="!hasImages" @click="submitSegmentation">完成分割</el-button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+          </div>
+        </div>
+      </el-tab-pane>
+
       <el-tab-pane label="处理进度" name="progress">
         <div class="coming-soon" v-if="!store.submissions.length">
           <el-empty description="暂无任务，请到“新建项目”提交图像" />
@@ -100,11 +180,11 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAppStore } from '../stores/appStore'
 import ImageUploader from '../components/ImageUploader.vue'
-import { uploadImage, createProject, uploadProjectImage, listProjects } from '../api'
+import { http, uploadImage, createProject, uploadProjectImage, listProjects } from '../api'
 import { ElMessage } from 'element-plus'
 
 const router = useRouter()
@@ -168,6 +248,81 @@ const canSubmit = computed(() => !!projectForm.value.projectName && !!projectFor
 
 function fileKey(f) {
   return `${f.name}_${f.size}_${f.lastModified}`
+}
+
+
+const dogSrc = new URL('../image/teeth.JPG', import.meta.url).href
+const dogImg = ref(null)
+const lastClick = ref(null)
+const input_point = ref([])
+const input_label = ref([])
+
+const overlaySrc = ref('')
+const selectionMode = ref('click')
+const boxEnabled = ref(false)
+const activeTool = ref('hover')
+const hideOverlay = ref(false)
+
+function formatOpacity(val) {
+  return Math.round(val * 100) + '%'
+}
+
+async function onImgMouseDown(e) {
+  const imgEl = dogImg.value || (e.currentTarget && e.currentTarget.querySelector('img'))
+  if (!imgEl) return
+
+  // get bounding rect of displayed image
+  const rect = imgEl.getBoundingClientRect()
+  const clickXDisplay = e.clientX - rect.left
+  const clickYDisplay = e.clientY - rect.top
+
+  // displayed size
+  const displayW = rect.width
+  const displayH = rect.height
+  // natural/original size in pixels
+  const naturalW = imgEl.naturalWidth
+  const naturalH = imgEl.naturalHeight
+
+  // guard
+  if (!displayW || !displayH || !naturalW || !naturalH) return
+
+  // map display coords -> natural image pixel coords
+  const scaleX = naturalW / displayW
+  const scaleY = naturalH / displayH
+  const x = Math.round(clickXDisplay * scaleX)
+  const y = Math.round(clickYDisplay * scaleY)
+
+  const label = e.button === 0 ? 1 : (e.button === 2 ? 0 : null)
+  lastClick.value = { x, y, label }
+
+  // accumulate points and labels (you may change to send only current point if desired)
+  input_point.value.push([x, y])
+  input_label.value.push(label)
+
+  // draw the original (natural-size) image into a canvas to preserve pixel size
+  const canvas = document.createElement('canvas')
+  canvas.width = naturalW
+  canvas.height = naturalH
+  const ctx = canvas.getContext('2d')
+  ctx.drawImage(imgEl, 0, 0, canvas.width, canvas.height)
+
+  try {
+    const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'))
+    const form = new FormData()
+    form.append('file', blob, 'capture.png')
+    form.append('point_coords', JSON.stringify(input_point.value))
+    form.append('point_labels', JSON.stringify(input_label.value))
+
+    const { data } = await http.post('/segmentation/predict', form, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    })
+
+    if (data && data.image_base64) {
+      overlaySrc.value = data.image_base64
+    }
+  } catch (err) {
+    console.error('predict error', err)
+  }
 }
 
 function onSelect(selected) {
@@ -255,6 +410,96 @@ async function onCreateProject() {
     ElMessage.error('提交失败：' + (e.response?.data?.detail || '未知错误'))
   }
 }
+
+// 牙齿分割相关
+const opacity = ref(1)
+const currentImageIndex = ref(0)
+// displayedImages 可替换为从后端加载的 image urls，当前为占位
+const displayedImages = ref([
+  new URL('../image/teeth.JPG', import.meta.url).href,
+  // 添加更多占位或从项目中加载
+])
+const images = displayedImages // 兼容旧代码
+const jumpIndex = ref(1)
+
+const hasImages = computed(() => (displayedImages.value && displayedImages.value.length > 0))
+const displayIndexText = computed(() => hasImages.value ? `${currentImageIndex.value + 1}/${displayedImages.value.length}` : '0/0')
+
+function resetSegmentation() {
+  overlaySrc.value = ''
+}
+
+function prevImage() {
+  if (!hasImages.value) return
+  currentImageIndex.value = (currentImageIndex.value - 1 + displayedImages.value.length) % displayedImages.value.length
+  updateDisplayedSrc()
+}
+
+function nextImage() {
+  if (!hasImages.value) return
+  currentImageIndex.value = (currentImageIndex.value + 1) % displayedImages.value.length
+  updateDisplayedSrc()
+}
+
+function submitSegmentation() {
+  // TODO: 集成后端提交逻辑；当前为占位行为
+  ElMessage.success('分割已提交（占位）')
+}
+
+function updateDisplayedSrc() {
+  // 更新主图与 overlay 的 src
+  const src = displayedImages.value[currentImageIndex.value]
+  if (src && dogImg.value) {
+    dogImg.value.src = src
+    // 清掉 overlay（保持用户选择的行为），如需保留 overlay 则注释下一行
+    overlaySrc.value = ''
+  }
+}
+
+function jumpTo(val) {
+  if (!hasImages.value) return
+  const idx = Math.max(0, Math.min(displayedImages.value.length - 1, (val || jumpIndex.value) - 1))
+  currentImageIndex.value = idx
+  updateDisplayedSrc()
+}
+
+function toggleAutoplay() {
+}
+
+function onThumbClick(idx) {
+  currentImageIndex.value = idx
+  updateDisplayedSrc()
+}
+
+// 监听 opacity 并注入 CSS 变量，驱动 overlay-img 的透明度
+watch(opacity, (v) => {
+  const el = document.querySelector('.dashboard')
+  if (el) el.style.setProperty('--opacity', String(v))
+}, { immediate: true })
+
+// 键盘快捷键: 左/右 翻页, R 重置, Space 播放/暂停
+function onKeydown(e) {
+  if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA')) return
+  if (e.key === 'ArrowLeft') prevImage()
+  else if (e.key === 'ArrowRight') nextImage()
+  else if (e.key === 'r' || e.key === 'R') resetSegmentation()
+}
+
+function undo() {
+  // 占位：回退上一步（界面级占位，未实现实际回退逻辑）
+  ElMessage.info('回退（占位）')
+}
+
+onMounted(() => {
+  // 已有时间更新逻辑，追加键盘与 autoplay 管理
+  window.addEventListener('keydown', onKeydown)
+  // 初始化图片
+  nextTick(() => updateDisplayedSrc())
+})
+
+onUnmounted(() => {
+  window.removeEventListener('keydown', onKeydown)
+})
 </script>
 
 <style scoped>
@@ -506,6 +751,140 @@ async function onCreateProject() {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+.segment-simple { padding: 16px; }
+.img-wrap { position: relative; display: inline-block }
+.dog-img { max-width: 80%; border: 1px solid #eee; display: block; border-radius: 8px; }
+.overlay-img { position: absolute; left: 0; top: 0; pointer-events: none; max-width: 80%; opacity: var(--opacity); border-radius: 8px; }
+.thumb-row { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
+.thumb-item { cursor: pointer; }
+.thumb-small { width: 72px; height: 48px; object-fit: cover; border-radius: 4px; }
+:root, .dashboard { --opacity: 1; }
+
+/* 过渡与动画 */
+.fade-enter-active, .fade-leave-active { transition: opacity 300ms ease; }
+.fade-enter-from, .fade-leave-to { opacity: 0 }
+.thumb-small { transition: box-shadow 180ms ease; }
+.thumb-small.active { border: 2px solid #409eff }
+.thumb-row { overflow-x: auto; padding-bottom: 6px }
+.img-wrap { display:flex; align-items:center; justify-content:center; min-height:240px }
+.dog-img { transition: box-shadow 220ms ease }
+.overlay-img { transition: opacity 220ms ease }
+.click-info { margin-top: 12px; background: #fff; padding: 8px; border-radius: 6px }
+
+.controls {
+  margin-top: 16px;
+}
+
+.visibility-control { background:#fff; padding:8px; border-radius:8px; border:1px solid #f0f0f0; margin-bottom:8px }
+.vis-row { display:flex; align-items:center; gap:8px; margin-bottom:8px }
+.opacity-label { font-size:13px; color:#666; margin-bottom:6px }
+.opacity-row { display:flex; align-items:center; gap:8px }
+.opacity-display { min-width:48px; text-align:center; font-size:13px; color:#444 }
+
+.selection-panel {
+  background: #fff;
+  border-radius: 8px;
+  padding: 12px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+  border: 1px solid #f0f0f0;
+}
+.selection-header { font-weight:600; margin-bottom:6px }
+.selection-usage { margin-top:6px; color:#666 }
+.usage-title { font-weight:600; font-size:13px }
+.usage-sub { font-size:12px; color:#999 }
+
+.vertical-panel {
+  background: #fff;
+  border-radius: 8px;
+  padding: 12px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+  border: 1px solid #f0f0f0;
+}
+.panel-header { background:#0f1724; color:#fff; padding:8px 10px; border-radius:6px; display:flex; gap:8px; align-items:center }
+.panel-header .title { font-weight:700 }
+.panel-usage { padding:8px 2px; color:#666; font-size:13px }
+.panel-option { padding:6px 2px }
+.panel-control { padding:8px 2px }
+.control-label { font-size:12px; color:#666; margin-bottom:6px }
+
+.tool-accordion { background:#fff; border-radius:8px; padding:8px; border:1px solid #f0f0f0 }
+.tool-item + .tool-item { margin-top:8px }
+.tool-header { display:flex; gap:8px; align-items:center; padding:10px; cursor:pointer; background:#fff; color:#0f1724; border-radius:6px; border:1px solid #eef2f6 }
+.tool-header .title { font-weight:700 }
+.tool-header.active { background:#0f1724; color:#fff; border-color: transparent }
+.tool-body { padding:8px; border-radius:6px; background:#fff }
+.tool-body .usage-line { color:#666; margin-bottom:6px; font-size:13px }
+.tool-body[style] { transition: all 180ms ease }
+
+.tool-actions { margin-top:10px; padding: 0 }
+.full-btn { width:100%; box-sizing: border-box; text-align:center; margin:8px 0; border-radius:6px; padding:12px 0 }
+
+.navigation {
+  margin-top: 16px;
+}
+
+.actions-row { display:flex; align-items:center; gap:8px }
+.actions-left { display:flex; gap:8px }
+.actions-right { margin-left: auto }
+
+@media (max-width: 720px) {
+  .actions-row { flex-wrap:wrap }
+  .actions-right { margin-left: 0; width:100% }
+}
+
+.segment-container {
+  display: flex;
+  gap: 16px;
+  padding: 20px;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.right-panel {
+  flex: 2;
+  margin-left: 120px;
+}
+
+.left-panel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.img-wrap {
+  position: relative;
+  display: block;
+}
+
+.dog-img {
+  max-width: 100%;
+  width: auto;
+  border: 1px solid #eee;
+  display: block;
+  border-radius: 8px;
+}
+
+.overlay-img {
+  position: absolute;
+  left: 0;
+  top: 0;
+  pointer-events: none;
+  max-width: 100%;
+  opacity: var(--opacity);
+  border-radius: 8px;
+}
+
+.media-box {
+  display: inline-block;
+  position: relative;
+  text-align: left;
+}
+
+.media-box .actions-row { width: 100%; box-sizing: border-box; padding: 8px 4px 0 0 }
+.media-box .actions-right { margin-left: auto }
 </style>
 
 
