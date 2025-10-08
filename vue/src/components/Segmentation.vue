@@ -1,81 +1,81 @@
 <template>
-    <div class="segment-container">
-        <div class="left-panel">
-        <div class="controls">
-            <div>
-            <div class="tool-accordion">
-                <div class="tool-item">
-                <div :class="['tool-header', { active: activeTool === 'hover' }]" @click="activeTool = activeTool === 'hover' ? null : 'hover'">
-                    <span class="icon">🖱️</span>
-                    <span class="title">点击方式</span>
-                </div>
-                <div class="tool-body" v-show="activeTool === 'hover'">
-                    <div class="usage-line">左键: 选中区域</div>
-                    <div class="usage-line">右键: 删除区域</div>
-                </div>
-                </div>
+  <div class="segment-container">
+    <div class="left-panel">
+      <div class="controls">
+        <div>
+          <div class="tool-accordion">
+            <div class="tool-item">
+              <div :class="['tool-header', { active: activeTool === 'hover' }]" @click="activeTool = activeTool === 'hover' ? null : 'hover'">
+                <span class="icon">🖱️</span>
+                <span class="title">点击方式</span>
+              </div>
+              <div class="tool-body" v-show="activeTool === 'hover'">
+                <div class="usage-line">左键: 选中区域</div>
+                <div class="usage-line">右键: 删除区域</div>
+              </div>
+            </div>
 
-                <div class="tool-item">
-                <div :class="['tool-header', { active: activeTool === 'box' }]" @click="activeTool = activeTool === 'box' ? null : 'box'">
-                    <span class="icon" style="margin-left:3px">▢</span>
-                    <span class="title" style="margin-left:4px">框选方式</span>
-                </div>
-                <div class="tool-body" v-show="activeTool === 'box'">
-                    <div class="usage-line">拖拽以框选区域</div>
-                    <div class="usage-line"></div>
-                </div>
-                </div>
-                <el-divider/>
-                <div class="opacity-label">透明度设置</div>
-                <div class="opacity-row">
-                <el-slider v-model="opacity" :min="0" :max="1" :step="0.01" :format-tooltip="formatOpacity" />
-                <div class="opacity-display">{{ formatOpacity(opacity) }}</div>
-                </div>
-                <div class="tool-actions">
-                <el-button class="full-btn" @click="undo">
-                    <el-icon><ArrowLeftBold /></el-icon>
-                    回退
-                </el-button>
-                <el-button class="full-btn" @click="resetSegmentation">
-                    <el-icon><CloseBold /></el-icon>
-                    重置
-                </el-button>
-                </div>
+            <div class="tool-item">
+              <div :class="['tool-header', { active: activeTool === 'box' }]" @click="activeTool = activeTool === 'box' ? null : 'box'">
+                <span class="icon" style="margin-left:3px">▢</span>
+                <span class="title" style="margin-left:4px">框选方式</span>
+              </div>
+              <div class="tool-body" v-show="activeTool === 'box'">
+                <div class="usage-line">拖拽以框选区域</div>
+                <div class="usage-line"></div>
+              </div>
             </div>
+            <el-divider />
+            <div class="opacity-label">透明度设置</div>
+            <div class="opacity-row">
+              <el-slider v-model="opacity" :min="0" :max="1" :step="0.01" :format-tooltip="formatOpacity" />
+              <div class="opacity-display">{{ formatOpacity(opacity) }}</div>
             </div>
+            <div class="tool-actions">
+              <el-button class="full-btn" @click="undo">
+                <el-icon><ArrowLeftBold /></el-icon>
+                回退
+              </el-button>
+              <el-button class="full-btn" @click="resetSegmentation">
+                <el-icon><CloseBold /></el-icon>
+                重置
+              </el-button>
+            </div>
+          </div>
         </div>
-        </div>
-
-        <div class="right-panel">
-            <div class="thumb-row" v-if="displayedImages.length">
-            <div v-for="(t, i) in displayedImages" :key="i" class="thumb-item" @click="onThumbClick(i)">
-                <img :src="t" class="thumb-small" :class="{ active: i === currentImageIndex }" />
-            </div>
-            </div>
-            <div class="img-wrap" ref="imgWrap" @mousedown="onImgMouseDown" @contextmenu.prevent>
-            <div class="media-box">
-                <transition name="fade" mode="out-in">
-                <img key="main-{{ currentImageIndex }}" ref="dogImg" :src="displayedImages[currentImageIndex] || dogSrc" alt="dog" class="dog-img" />
-                </transition>
-                <transition name="fade">
-                <img v-if="overlaySrc && !hideOverlay" :src="overlaySrc" alt="overlay" class="overlay-img" />
-                </transition>
-
-                <div class="actions-row" style="margin-top: 15px">
-                <div class="actions-left">
-                    <el-button :disabled="!hasImages" @click="prevImage">上一张</el-button>
-                    <span>{{ displayIndexText }}</span>
-                    <el-button :disabled="!hasImages" @click="nextImage">下一张</el-button>
-                </div>
-                <div class="actions-right">
-                    <el-button>返回</el-button>
-                    <el-button type="primary" :disabled="!hasImages" @click="submitSegmentation">完成分割</el-button>
-                </div>
-                </div>
-            </div>
-            </div>
-        </div>
+      </div>
     </div>
+
+    <div class="right-panel">
+      <div class="thumb-row" v-if="displayedImages.length">
+        <div v-for="(t, i) in displayedImages" :key="i" class="thumb-item" @click="onThumbClick(i)">
+          <img :src="t" class="thumb-small" :class="{ active: i === currentImageIndex }" />
+        </div>
+      </div>
+      <div class="img-wrap" ref="imgWrap" @mousedown="onImgMouseDown" @contextmenu.prevent>
+        <div class="media-box">
+          <transition name="fade" mode="out-in">
+            <img key="main-{{ currentImageIndex }}" ref="dogImg" :src="displayedImages[currentImageIndex] || dogSrc" alt="dog" class="dog-img" />
+          </transition>
+          <transition name="fade">
+            <img v-if="overlaySrc && !hideOverlay" :src="overlaySrc" alt="overlay" class="overlay-img" />
+          </transition>
+
+          <div class="actions-row" style="margin-top: 15px">
+            <div class="actions-left">
+              <el-button :disabled="!hasImages" @click="prevImage">上一张</el-button>
+              <span>{{ displayIndexText }}</span>
+              <el-button :disabled="!hasImages" @click="nextImage">下一张</el-button>
+            </div>
+            <div class="actions-right">
+              <el-button>返回</el-button>
+              <el-button type="primary" :disabled="!hasImages" @click="submitSegmentation">完成分割</el-button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
 
 </template>
 
