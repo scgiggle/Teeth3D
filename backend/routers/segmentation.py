@@ -40,7 +40,7 @@ def get_sam2_model_and_predictor():
 
                 model_cfg = "configs/sam2.1/sam2.1_hiera_l.yaml"
                 base_dir = os.path.dirname(os.path.abspath(__file__))
-                sam2_checkpoint = os.path.join(base_dir, "../model/sam2/checkpoints/sam2.1_hiera_large.pt")
+                sam2_checkpoint = os.path.join(base_dir, "../checkpoints/sam2.1_hiera_large.pt")
 
                 try:
                     from sam2.build_sam import build_sam2
