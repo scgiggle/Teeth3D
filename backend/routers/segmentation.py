@@ -40,7 +40,7 @@ def get_sam2_model_and_predictor():
 
                 model_cfg = "configs/sam2.1/sam2.1_hiera_l.yaml"
                 base_dir = os.path.dirname(os.path.abspath(__file__))
-                sam2_checkpoint = os.path.join(base_dir, "../model/sam2/checkpoints/sam2.1_hiera_large.pt")
+                sam2_checkpoint = os.path.join(base_dir, "../checkpoint/sam2.1_hiera_large.pt")
 
                 try:
                     from sam2.build_sam import build_sam2
@@ -188,77 +188,7 @@ def show_points(coords, labels, ax, marker_size=375):
     ax.scatter(neg_points[:, 0], neg_points[:, 1], color="red", marker="*", s=marker_size, edgecolor="white", linewidth=1.25)
 
 
-def start_to_segment1(image: np.ndarray, point_coords: Optional[np.ndarray] = None, point_labels: Optional[np.ndarray] = None):
-    """Run SAM2 predictor on a provided numpy RGB image and return overlay PNG as base64 string.
-
-    Inputs:
-      - image: HxWx3 uint8 numpy array (RGB)
-      - point_coords: optional array shape (N,2)
-      - point_labels: optional array shape (N,)
-
-    Returns: dict {"overlay_base64": "data:image/png;base64,...", "mask_index": int}
-    """
-    sam2_model, SAM2ImagePredictor, device = get_sam2_model_and_predictor()
-
-    print(f"using device: {device.type}")
-
-    # build model
-    try:
-        predictor = SAM2ImagePredictor(sam2_model)
-    except Exception as e:
-        print(e)
-        raise RuntimeError(f"Failed to import SAM2 modules: {e}")
-
-
-    predictor.set_image(image)
-
-    # default point if none provided: center of image
-    if point_coords is None or point_labels is None:
-        h, w = image.shape[:2]
-        point_coords = np.array([[w // 2, h // 2]])
-        point_labels = np.array([1])
-
-    # ensure correct shapes
-    point_coords = np.asarray(point_coords).astype(np.float32)
-    point_labels = np.asarray(point_labels).astype(np.int32)
-
-    masks, scores, logits = predictor.predict(
-        point_coords=point_coords,
-        point_labels=point_labels,
-        multimask_output=True,
-    )
-
-    if masks is None or len(masks) == 0:
-        raise RuntimeError("No masks returned by predictor")
-
-    sorted_ind = np.argsort(scores)[::-1]
-    masks = masks[sorted_ind]
-    scores = scores[sorted_ind]
-
-    best_mask = masks[0]
-
-    # create overlay png
-    color = (30, 144, 255)
-    alpha = 128
-    overlay = np.zeros((image.shape[0], image.shape[1], 4), dtype=np.uint8)
-    overlay[..., 0] = color[0]
-    overlay[..., 1] = color[1]
-    overlay[..., 2] = color[2]
-    overlay[..., 3] = (best_mask.astype(np.uint8) * alpha)
-
-    orig = Image.fromarray(image).convert("RGBA")
-    overlay_img = Image.fromarray(overlay, mode="RGBA")
-    composed = Image.alpha_composite(orig, overlay_img)
-
-    buf = io.BytesIO()
-    composed.save(buf, format="PNG")
-    buf.seek(0)
-    b64 = base64.b64encode(buf.read()).decode("ascii")
-    data_url = f"data:image/png;base64,{b64}"
-
-    return {"overlay_base64": data_url, "mask_index": int(sorted_ind[0])}
-
-def start_to_segment2(image: np.ndarray, point_coords: Optional[np.ndarray] = None, point_labels: Optional[np.ndarray] = None):
+def start_to_segment(image: np.ndarray, point_coords: Optional[np.ndarray] = None, point_labels: Optional[np.ndarray] = None):
     """
     与 quick_start.py 一致，返回带分割 mask 和点击点的图片（base64）。
     使用 PIL 进行像素级合成（避免 matplotlib 在无显示环境下报错），确保只有 mask 区域被染色，其他区域保持原样，并绘制点击点。
@@ -290,6 +220,7 @@ def start_to_segment2(image: np.ndarray, point_coords: Optional[np.ndarray] = No
     sorted_ind = np.argsort(scores)[::-1]
     masks = masks[sorted_ind]
     scores = scores[sorted_ind]
+    logits = logits[sorted_ind]
     best_mask = masks[0]
 
     # 使用 PIL 进行合成：只有 mask 区域染色，其他区域保持原样；并绘制点击点
@@ -377,7 +308,7 @@ async def segmentation_predict(
             raise HTTPException(status_code=400, detail="point_labels 格式错误，应为 JSON 数组")
 
     try:
-        result = start_to_segment2(image, point_coords=pc, point_labels=pl)
+        result = start_to_segment(image, point_coords=pc, point_labels=pl)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"分割失败: {e}")
 
