@@ -96,7 +96,7 @@ const hideOverlay = ref(false)
 const opacity = ref(1)
 const currentImageIndex = ref(0)
 const displayedImages = ref([
-  new URL('../image/teeth.JPG', import.meta.url).href,
+  new URL('../image/dog.jpg', import.meta.url).href
 ])
 const hasImages = computed(() => (displayedImages.value && displayedImages.value.length > 0))
 const displayIndexText = computed(() => hasImages.value ? `${currentImageIndex.value + 1}/${displayedImages.value.length}` : '0/0')
