@@ -1,5 +1,7 @@
 {
   "python.analysis.extraPaths": [
     "./backend/model/sam2"
-  ]
+  ],
+  "editor.tabSize": 2,
+  "editor.insertSpaces": true
 }
