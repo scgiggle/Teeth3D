@@ -29,8 +29,9 @@
                 <el-form-item label="重建类型">
                   <el-select v-model="projectForm.reconstructionType" placeholder="选择重建类型" style="width: 100%;">
                     <el-option label="全口重建" value="全口重建" />
-                    <el-option label="单口重建" value="单口重建" />
-                    <el-option label="局部重建" value="局部重建" />
+                    <!-- 暂时屏蔽其他重建类型，目前只要全口的（已和老师沟通确认过） -->
+                    <!-- <el-option label="单口重建" value="单口重建" />
+                    <el-option label="局部重建" value="局部重建" /> -->
                   </el-select>
                 </el-form-item>
               </el-col>
