@@ -10,9 +10,7 @@
     <!-- 标签页导航 -->
     <el-tabs v-model="activeTab" class="dashboard-tabs">
       <el-tab-pane label="首页" name="overview">
-        <div class="coming-soon">
-          <el-empty description="概览功能待开发" />
-        </div>
+        <HomePage />
       </el-tab-pane>
 
       <el-tab-pane label="新建项目" name="new-project">
@@ -112,6 +110,7 @@ import ImageUploader from '../components/ImageUploader.vue'
 import { uploadImage, createProject, uploadProjectImage, listProjects } from '../api'
 import { ElMessage } from 'element-plus'
 import Segmentation from '../components/Segmentation.vue'
+import HomePage from '../components/HomePage.vue' 
 
 const router = useRouter()
 const store = useAppStore()
