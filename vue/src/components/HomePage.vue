@@ -4,6 +4,10 @@
       <el-row :gutter="20" class="top-stats">
         <el-col :span="6" v-for="(s, idx) in stats" :key="idx">
           <el-card class="stat-card">
+            <div class="stat-badge" :style="{ background: '#fff' }">
+              <div class="stat-icon">{{ s.icon }}</div>
+              <div class="stat-subtitle">{{ s.subtitle }}</div>
+            </div>
             <div class="stat-title">{{ s.title }}</div>
             <div class="stat-value">{{ s.value }}</div>
             <div class="stat-sub" :class="{ positive: s.positive, negative: !s.positive }">
@@ -130,10 +134,10 @@ import { View, Download, Delete, Search } from '@element-plus/icons-vue'
 const search = ref('')
 
 const stats = ref([
-  { title: '总重建数', value: '1,234', change: '+12%', positive: true },
-  { title: '处理中任务', value: '8', change: '实时', positive: true },
-  { title: '成功率', value: '98.5%', change: '+0.5%', positive: true },
-  { title: '活跃用户', value: '156', change: '+8%', positive: true },
+  { title: '总重建数', value: '1,234', change: '+12%', positive: true, icon: '📈', subtitle: '同比', iconBg: '#e6f7ff' },
+  { title: '处理中任务', value: '8', change: '实时', positive: true, icon: '⚙️', subtitle: '当前', iconBg: '#fff7e6' },
+  { title: '成功率', value: '98.5%', change: '+0.5%', positive: true, icon: '✅', subtitle: '稳定', iconBg: '#f0fff4' },
+  { title: '活跃用户', value: '156', change: '+8%', positive: true, icon: '👥', subtitle: '本周', iconBg: '#fff0f6' },
 ])
 
 const recentTasks = ref([
@@ -224,6 +228,10 @@ function deleteProject(p) {
 .home-page { width: 100%; }
 .top-stats { margin-bottom: 18px; }
 .stat-card { padding: 18px; text-align: left; }
+.stat-card { padding: 18px; text-align: left; position:relative; }
+.stat-badge { position:absolute; right:12px; top:12px; background:#fff; padding:6px 8px; border-radius:8px; display:flex; align-items:center; gap:8px; }
+.stat-icon { width:28px; height:28px; display:flex; align-items:center; justify-content:center; font-size:14px; }
+.stat-subtitle { color:#999; font-size:12px; }
 .stat-title { color: #666; font-size: 13px; }
 .stat-value { font-size: 22px; font-weight: 700; margin-top: 6px; }
 .stat-sub { margin-top: 8px; font-size: 12px; }
@@ -252,6 +260,22 @@ function deleteProject(p) {
   flex: 1 1 auto;
   min-width: 0;
 }
+
+/* 让项目历史的搜索框色调更灰、更低对比（合并，禁止渐变） */
+.panel-header :deep(.el-input__inner) {
+  background: #fafafa;
+  border-color: #e6e6e6;
+  color: #666;
+  background-image: none !important; /* 禁止渐变 */
+}
+.panel-header :deep(.el-input__inner)::placeholder {
+  color: #999;
+}
+
+/* 禁止输入框的任何渐变 */
+.panel-header :deep(.el-input__inner) {
+  background-image: none !important;
+}
 .recent-tasks .task-card { padding: 12px; border-radius: 6px; margin-bottom: 12px; background: #fafafa; }
 .task-head { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:8px; }
 .task-title { max-width: 70%; }
@@ -264,18 +288,25 @@ function deleteProject(p) {
 .stage-full { 
   flex: 1; 
   text-align: center; 
-  color: #444; 
+  color: #999;               /* 未完成阶段使用灰色文字 */
   font-size: 13px; 
   padding: 8px 6px; 
   transition: all 0.15s ease; 
-  border: 1px solid #e6e6e6; 
+  border: 1px solid #eee;    /* 更浅的边框 */
   border-radius: 6px; 
-  background: #fff; 
+  background: #f7f7f7;      /* 未完成阶段灰色背景 */
   box-sizing: border-box;
 }
 .stage-full.done { color:#2f855a; border-color: #d1f0dc; background: #f0fff4; }
 .stage-full.active { color:#1f6fbf; border-color: #bfe0ff; background: #f2f9ff;}
 .stages-progress { width:100%; }
+
+/* 移除进度条填充的渐变，使用单色填充（覆盖 Element Plus 的默认样式） */
+.stages-progress :deep(.el-progress-bar__inner) {
+  background-image: none !important;
+  /* 使用与 done 状态相近的绿色单色填充（可按需修改） */
+  background: #7fc97f !important;
+}
 
 .proj-item { margin-bottom: 10px; }
 .proj-card {
@@ -298,9 +329,8 @@ function deleteProject(p) {
 }
 .proj-title { font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 
-.proj-meta-row { color:#888; font-size:12px; display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
-.proj-meta { color:#888; }
-.proj-date { margin-left:auto; color:#999; font-size:12px; }
+.proj-meta-row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+.proj-date { margin-left:auto; font-size:12px; }
 
 .proj-meta-row, .proj-meta, .proj-date, .proj-size {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial;
