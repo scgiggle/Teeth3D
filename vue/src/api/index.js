@@ -52,5 +52,6 @@ export const getModel = (modelId) => http.get(`/model/${modelId}`)
 export const createProject = (data) => http.post('/project', data)
 export const uploadProjectImage = (projectId, formData) => http.post(`/project/${projectId}/images`, formData)
 export const listProjects = (params) => http.get('/project', { params })
+export const deleteProject = (projectId) => http.delete(`/project/${projectId}`)
 
 

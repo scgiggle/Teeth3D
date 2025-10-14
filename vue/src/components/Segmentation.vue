@@ -5,6 +5,9 @@
         <div>
           <div class="tool-accordion">
             <div class="tool-item">
+              <div>
+                <p2 class="choice-way" >对象选择方式</p2>
+              </div>
               <div :class="['tool-header', { active: activeTool === 'hover' }]" @click="activeTool = activeTool === 'hover' ? null : 'hover'">
                 <span class="icon">🖱️</span>
                 <span class="title">点击方式</span>
@@ -15,7 +18,7 @@
               </div>
             </div>
 
-            <div class="tool-item">
+            <!-- <div class="tool-item">
               <div :class="['tool-header', { active: activeTool === 'box' }]" @click="activeTool = activeTool === 'box' ? null : 'box'">
                 <span class="icon" style="margin-left:3px">▢</span>
                 <span class="title" style="margin-left:4px">框选方式</span>
@@ -24,7 +27,7 @@
                 <div class="usage-line">拖拽以框选区域</div>
                 <div class="usage-line"></div>
               </div>
-            </div>
+            </div> -->
             <el-divider />
             <div class="opacity-label">透明度设置</div>
             <div class="opacity-row">
@@ -102,8 +105,8 @@ const hideOverlay = ref(false)
 const opacity = ref(1)
 const currentImageIndex = ref(0)
 const displayedImages = ref([
-  new URL('../image/teeth.JPG', import.meta.url).href,
-  new URL('../image/teeth2.JPG', import.meta.url).href,
+  new URL('../image/dog.JPG', import.meta.url).href,
+  new URL('../image/bird.jpg', import.meta.url).href,
   new URL('../image/teeth3.JPG', import.meta.url).href,
   new URL('../image/teeth4.JPG', import.meta.url).href,
   new URL('../image/teeth5.JPG', import.meta.url).href,
@@ -356,6 +359,7 @@ onUnmounted(() => {
 .tool-item + .tool-item { margin-top:8px }
 .tool-header { display:flex; gap:8px; align-items:center; padding:10px; cursor:pointer; background:#fff; color:#0f1724; border-radius:6px; border:1px solid #eef2f6 }
 .tool-header .title { font-weight:700 }
+/* .tool-header .way { font-size:12px; color:#666; margin-right:auto } */
 .tool-header.active { background:#0f1724; color:#fff; border-color: transparent }
 .tool-body { padding:8px; border-radius:6px; background:#fff }
 .usage-line { color:#666; margin-bottom:6px; font-size:13px }
@@ -369,4 +373,5 @@ onUnmounted(() => {
 .actions-row { display:flex; align-items:center; gap:8px }
 .actions-left { display:flex; gap:8px }
 .actions-right { margin-left: auto }
+.choice-way { display: block; unicode-bidi: isolate; margin-bottom: 10px;}
 </style>
