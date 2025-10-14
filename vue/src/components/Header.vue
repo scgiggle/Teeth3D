@@ -39,7 +39,7 @@ function onLogout() {
   box-shadow: 0 1px 4px rgba(0,0,0,0.08);
 }
 .brand { font-weight: 600; cursor: pointer; }
-.username { color: #606266; margin-right: 8px; }
+.username { color: #606266; margin-right: 8px; margin-block-end: 5px;}
 </style>
 
 
