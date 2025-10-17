@@ -105,7 +105,7 @@ def upload_project_image(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    # 校验项目存在且归属
+    # 校验项目存在且归属，如果不存在则报错
     project = db.query(ProjectORM).filter(ProjectORM.project_id == project_id).first()
     if not project:
         raise HTTPException(status_code=404, detail="项目不存在")
@@ -134,5 +134,44 @@ def upload_project_image(
     db.commit()
     db.refresh(row)
     return {"image_id": row.image_id, "image_path": rel_path}
+
+
+@router.delete("/{project_id}", response_model=dict)
+def delete_project(
+    project_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    # 校验项目存在且归属当前用户
+    project = db.query(ProjectORM).filter(
+        ProjectORM.project_id == project_id,
+        ProjectORM.user_id == current_user.user_id
+    ).first()
+    
+    if not project:
+        raise HTTPException(status_code=404, detail="项目不存在或无权限删除")
+    
+    # 删除关联的图片记录
+    images = db.query(ProjectImageORM).filter(ProjectImageORM.project_id == project_id).all()
+    
+    # 删除磁盘上的图片文件
+    import shutil
+    uploads_dir = os.path.join(os.path.dirname(__file__), "..", "uploads", str(project_id))
+    uploads_dir = os.path.abspath(uploads_dir)
+    if os.path.exists(uploads_dir):
+        try:
+            shutil.rmtree(uploads_dir)
+        except Exception as e:
+            # 文件删除失败不阻断数据库删除
+            print(f"Warning: Failed to delete files for project {project_id}: {e}")
+    
+    # 删除数据库记录
+    for image in images:
+        db.delete(image)
+    
+    db.delete(project)
+    db.commit()
+    
+    return {"message": "项目删除成功", "project_id": project_id}
 
 

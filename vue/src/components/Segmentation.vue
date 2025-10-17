@@ -5,6 +5,9 @@
         <div>
           <div class="tool-accordion">
             <div class="tool-item">
+              <div>
+                <p2 class="choice-way" >对象选择方式</p2>
+              </div>
               <div :class="['tool-header', { active: activeTool === 'hover' }]" @click="activeTool = activeTool === 'hover' ? null : 'hover'">
                 <span class="icon">🖱️</span>
                 <span class="title">点击方式</span>
@@ -15,7 +18,7 @@
               </div>
             </div>
 
-            <div class="tool-item">
+            <!-- <div class="tool-item">
               <div :class="['tool-header', { active: activeTool === 'box' }]" @click="activeTool = activeTool === 'box' ? null : 'box'">
                 <span class="icon" style="margin-left:3px">▢</span>
                 <span class="title" style="margin-left:4px">框选方式</span>
@@ -24,7 +27,7 @@
                 <div class="usage-line">拖拽以框选区域</div>
                 <div class="usage-line"></div>
               </div>
-            </div>
+            </div> -->
             <el-divider />
             <div class="opacity-label">透明度设置</div>
             <div class="opacity-row">
@@ -48,7 +51,8 @@
 
     <div class="right-panel">
       <div class="thumb-row" v-if="displayedImages.length">
-        <div v-for="(t, i) in displayedImages" :key="i" class="thumb-item" @click="onThumbClick(i)">
+        <div v-for="(t, i) in displayedImages" :key="i" class="thumb-item" @click="onThumbClick(i)"
+          :style="{ pointerEvents: isProcessing ? 'none' : 'auto', opacity: isProcessing ? 0.5 : 1 }">
           <img :src="t" class="thumb-small" :class="{ active: i === currentImageIndex }" />
         </div>
       </div>
@@ -63,13 +67,15 @@
 
           <div class="actions-row" style="margin-top: 15px">
             <div class="actions-left">
-              <el-button :disabled="!hasImages" @click="prevImage">上一张</el-button>
+              <el-button :disabled="!hasImages" @click="prevImage" @mousedown.stop 
+              :style="{ pointerEvents: isProcessing ? 'none' : 'auto', opacity: isProcessing ? 0.5 : 1 }">上一张</el-button>
               <span>{{ displayIndexText }}</span>
-              <el-button :disabled="!hasImages" @click="nextImage">下一张</el-button>
+              <el-button :disabled="!hasImages" @click="nextImage" @mousedown.stop 
+              :style="{ pointerEvents: isProcessing ? 'none' : 'auto', opacity: isProcessing ? 0.5 : 1 }">下一张</el-button>
             </div>
             <div class="actions-right">
-              <el-button>返回</el-button>
-              <el-button type="primary" :disabled="!hasImages" @click="submitSegmentation">完成分割</el-button>
+              <el-button @mousedown.stop>返回</el-button>
+              <el-button type="primary" :disabled="!hasImages" @click="submitSegmentation" @mousedown.stop>完成分割</el-button>
             </div>
           </div>
         </div>
@@ -89,6 +95,9 @@ const dogSrc = new URL('../image/teeth.JPG', import.meta.url).href
 const dogImg = ref(null)
 const input_point = ref([])
 const input_label = ref([])
+const history = ref([])
+const imageStates = ref([])
+const isProcessing = ref(false)
 
 const overlaySrc = ref('')
 const activeTool = ref('hover')
@@ -96,7 +105,15 @@ const hideOverlay = ref(false)
 const opacity = ref(1)
 const currentImageIndex = ref(0)
 const displayedImages = ref([
+<<<<<<< HEAD
   new URL('../image/dog.jpg', import.meta.url).href
+=======
+  new URL('../image/dog.JPG', import.meta.url).href,
+  new URL('../image/bird.jpg', import.meta.url).href,
+  new URL('../image/teeth3.JPG', import.meta.url).href,
+  new URL('../image/teeth4.JPG', import.meta.url).href,
+  new URL('../image/teeth5.JPG', import.meta.url).href,
+>>>>>>> bb06aee548cac39efbcb031b68df78ad7ba1bccc
 ])
 const hasImages = computed(() => (displayedImages.value && displayedImages.value.length > 0))
 const displayIndexText = computed(() => hasImages.value ? `${currentImageIndex.value + 1}/${displayedImages.value.length}` : '0/0')
@@ -104,11 +121,19 @@ const displayIndexText = computed(() => hasImages.value ? `${currentImageIndex.v
 function formatOpacity(val) {
   return Math.round(val * 100) + '%'
 }
-
+ // 处理图片点击事件
 async function onImgMouseDown(e) {
-  const imgEl = dogImg.value || (e.currentTarget && e.currentTarget.querySelector('img'))
-  if (!imgEl) return
+  if (isProcessing.value) {
+    ElMessage.info('正在处理，请稍候再操作')
+    return
+  }
+  isProcessing.value = true
 
+  const imgEl = dogImg.value || (e.currentTarget && e.currentTarget.querySelector('img'))
+  if (!imgEl) {
+    isProcessing.value = false
+    return
+  }
   const rect = imgEl.getBoundingClientRect()
   const clickXDisplay = e.clientX - rect.left
   const clickYDisplay = e.clientY - rect.top
@@ -149,42 +174,105 @@ async function onImgMouseDown(e) {
 
     if (data && data.image_base64) {
       overlaySrc.value = data.image_base64
+      saveCurrentImageState()
     }
   } catch (err) {
     console.error('predict error', err)
     ElMessage.error('分割请求失败')
   }
+  isProcessing.value = false
 }
 
-function resetSegmentation() {
+// 保存当前图片的状态快照
+function saveCurrentImageState(idx = currentImageIndex.value) {
+  if (!imageStates.value[idx]) imageStates.value[idx] = []
+  const snap = {
+    point: JSON.parse(JSON.stringify(input_point.value || [])),
+    label: JSON.parse(JSON.stringify(input_label.value || [])),
+    overlay: overlaySrc.value || ''
+  }
+  const arr = imageStates.value[idx]
+  const last = arr[arr.length - 1]
+  // 避免连续重复快照
+  if (last && JSON.stringify(last) === JSON.stringify(snap)) return
+  arr.push(snap)
+}
+
+// 加载指定图片的状态快照
+function loadImageState(idx = currentImageIndex.value) {
+  const arr = imageStates.value[idx] || []
+  if (!arr.length) {
+    // 没有保存的快照 -> 清空当前状态
+    input_point.value = []
+    input_label.value = []
+    overlaySrc.value = ''
+    return
+  }
+  const st = arr[arr.length - 1]
+  input_point.value = JSON.parse(JSON.stringify(st.point || []))
+  input_label.value = JSON.parse(JSON.stringify(st.label || []))
+  overlaySrc.value = st.overlay || ''
+}
+
+// 重置分割状态
+function resetSegmentation(idx = currentImageIndex.value) {
+  if (isProcessing.value) {
+    ElMessage.info('正在处理，请稍候再操作')
+    return
+  }
   overlaySrc.value = ''
+  input_label.value = []
+  input_point.value = []
+  if (Array.isArray(imageStates.value[idx])) {
+    imageStates.value[idx] = []
+  }
 }
 
+// 切换到上一张图片
 function prevImage() {
+  if (isProcessing.value) {
+    ElMessage.info('正在处理，请稍候再操作')
+    return
+  }
   if (!hasImages.value) return
   currentImageIndex.value = (currentImageIndex.value - 1 + displayedImages.value.length) % displayedImages.value.length
   updateDisplayedSrc()
 }
 
+// 切换到下一张图片
 function nextImage() {
+  if (isProcessing.value) {
+    ElMessage.info('正在处理，请稍候再操作')
+    return
+  }
   if (!hasImages.value) return
   currentImageIndex.value = (currentImageIndex.value + 1) % displayedImages.value.length
   updateDisplayedSrc()
 }
 
+// 提交分割结果
 function submitSegmentation() {
+  if (isProcessing.value) {
+    ElMessage.info('正在处理，请稍候再操作')
+    return
+  }
   ElMessage.success('分割已提交（占位）')
 }
 
+// 更新当前显示的图片
 function updateDisplayedSrc() {
   const src = displayedImages.value[currentImageIndex.value]
   if (src && dogImg.value) {
     dogImg.value.src = src
-    overlaySrc.value = ''
+    loadImageState(currentImageIndex.value)
   }
 }
-
+// 点击缩略图切换
 function onThumbClick(idx) {
+  if (isProcessing.value) {
+    ElMessage.info('正在处理，请稍候再操作')
+    return
+  }
   currentImageIndex.value = idx
   updateDisplayedSrc()
 }
@@ -196,8 +284,32 @@ function onKeydown(e) {
   else if (e.key === 'r' || e.key === 'R') resetSegmentation()
 }
 
+// 回退上一步操作
 function undo() {
-  ElMessage.info('回退（占位）')
+  if (isProcessing.value) {
+    ElMessage.info('正在处理，请稍候再操作')
+    return
+  }
+  const arr = imageStates.value[currentImageIndex.value] || []
+  if (!arr.length) {
+    ElMessage.info('没有可撤销的历史')
+    return
+  }
+
+  // 弹出最后一次快照（表示撤销）
+  arr.pop()
+  const last = arr[arr.length - 1]
+  if (last) {
+    input_point.value = JSON.parse(JSON.stringify(last.point || []))
+    input_label.value = JSON.parse(JSON.stringify(last.label || []))
+    overlaySrc.value = last.overlay || ''
+  } else {
+    // 没有历史则清空当前状态
+    input_point.value = []
+    input_label.value = []
+    overlaySrc.value = ''
+  }
+
 }
 
 watch(opacity, (v) => {
@@ -206,6 +318,7 @@ watch(opacity, (v) => {
 }, { immediate: true })
 
 onMounted(() => {
+  imageStates.value = displayedImages.value.map(() => [])
   window.addEventListener('keydown', onKeydown)
   nextTick(() => updateDisplayedSrc())
 })
@@ -250,6 +363,7 @@ onUnmounted(() => {
 .tool-item + .tool-item { margin-top:8px }
 .tool-header { display:flex; gap:8px; align-items:center; padding:10px; cursor:pointer; background:#fff; color:#0f1724; border-radius:6px; border:1px solid #eef2f6 }
 .tool-header .title { font-weight:700 }
+/* .tool-header .way { font-size:12px; color:#666; margin-right:auto } */
 .tool-header.active { background:#0f1724; color:#fff; border-color: transparent }
 .tool-body { padding:8px; border-radius:6px; background:#fff }
 .usage-line { color:#666; margin-bottom:6px; font-size:13px }
@@ -263,4 +377,5 @@ onUnmounted(() => {
 .actions-row { display:flex; align-items:center; gap:8px }
 .actions-left { display:flex; gap:8px }
 .actions-right { margin-left: auto }
+.choice-way { display: block; unicode-bidi: isolate; margin-bottom: 10px;}
 </style>

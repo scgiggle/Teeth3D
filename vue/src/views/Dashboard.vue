@@ -10,9 +10,7 @@
     <!-- 标签页导航 -->
     <el-tabs v-model="activeTab" class="dashboard-tabs">
       <el-tab-pane label="首页" name="overview">
-        <div class="coming-soon">
-          <el-empty description="概览功能待开发" />
-        </div>
+        <HomePage />
       </el-tab-pane>
 
       <el-tab-pane label="新建项目" name="new-project">
@@ -29,8 +27,9 @@
                 <el-form-item label="重建类型">
                   <el-select v-model="projectForm.reconstructionType" placeholder="选择重建类型" style="width: 100%;">
                     <el-option label="全口重建" value="全口重建" />
-                    <el-option label="单口重建" value="单口重建" />
-                    <el-option label="局部重建" value="局部重建" />
+                    <!-- 暂时屏蔽其他重建类型，目前只要全口的（已和老师沟通确认过） -->
+                    <!-- <el-option label="单口重建" value="单口重建" />
+                    <el-option label="局部重建" value="局部重建" /> -->
                   </el-select>
                 </el-form-item>
               </el-col>
@@ -60,11 +59,16 @@
           <div class="history" v-if="store.submissions.length" style="margin-top: 24px;">
             <h4>最近提交</h4>
             <el-table :data="store.submissions" size="small" style="width: 100%">
-              <el-table-column prop="project_id" label="任务ID" width="160" />
+              <el-table-column type="index" :index="indexMethod" label="序号" width="160" />
               <el-table-column prop="project_name" label="项目名称" />
               <el-table-column prop="reconstruction_type" label="重建类型" width="140" />
               <el-table-column prop="status" label="项目状态" width="120" />
               <el-table-column prop="created_at" label="提交时间" width="220" />
+              <el-table-column label="操作" width="100">
+                <template #default="{ row, $index }">
+                  <el-button type="danger" link @click="deleteProject(row, $index)" size="small">删除</el-button>
+                </template>
+              </el-table-column>
             </el-table>
           </div>
         </div>
@@ -108,13 +112,17 @@ import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAppStore } from '../stores/appStore'
 import ImageUploader from '../components/ImageUploader.vue'
-import { uploadImage, createProject, uploadProjectImage, listProjects } from '../api'
-import { ElMessage } from 'element-plus'
+import { uploadImage, createProject, uploadProjectImage, listProjects, deleteProject as deleteProjectAPI } from '../api'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import Segmentation from '../components/Segmentation.vue'
+import HomePage from '../components/HomePage.vue' 
 
 const router = useRouter()
 const store = useAppStore()
 const activeTab = ref('overview')
+
+// 表格序号（从 1 开始）
+const indexMethod = (index) => index + 1
 
 // 初始化时从数据库拉取最近项目，替换本地缓存
 async function loadRecentProjects() {
@@ -206,11 +214,20 @@ function removeAt(index) {
 }
 
 function onReupload() {
+  clearProjectForm()
+  uploaderRef.value?.open()
+}
+
+function clearProjectForm() {
+  // 清除项目表单
+  projectForm.value = { projectName: '', reconstructionType: '', description: '' }
+  // 清除文件列表
   files.value = []
+  // 释放并清除预览URL
   previewUrls.value.forEach(u => URL.revokeObjectURL(u))
   previewUrls.value = []
+  // 清除上传组件状态
   uploaderRef.value?.clear()
-  uploaderRef.value?.open()
 }
 
 async function onUpload() {
@@ -251,13 +268,47 @@ async function onCreateProject() {
       project_id: String(projectId),
       project_name: projectForm.value.projectName,
       reconstruction_type: projectForm.value.reconstructionType,
-      status: p.status ||'重建中',
+      status: p.status ,
       created_at: p.created_at,
     })
-    ElMessage.success('提交成功，请前往“处理进度”查看')
-    activeTab.value = 'progress'
+    ElMessage.success('提交成功，正在跳转到牙齿分割页面')
+    
+    // 清除表单和文件状态
+    clearProjectForm()
+    
+    activeTab.value = 'segment'
   } catch (e) {
     ElMessage.error('提交失败：' + (e.response?.data?.detail || '未知错误'))
+  }
+}
+
+// 删除项目
+async function deleteProject(row, index) {
+  try {
+    await ElMessageBox.confirm(
+      `确定要删除项目"${row.project_name}"吗？此操作不可撤销。`,
+      '确认删除',
+      {
+        confirmButtonText: '确定删除',
+        cancelButtonText: '取消',
+        type: 'warning',
+      }
+    )
+    
+    // 调用后端删除接口
+    await deleteProjectAPI(row.project_id)
+    
+    // 从本地状态中移除
+    store.submissions.splice(index, 1)
+    
+    // 同步持久化
+    localStorage.setItem('submissions', JSON.stringify(store.submissions))
+    
+    ElMessage.success('项目删除成功')
+  } catch (error) {
+    if (error !== 'cancel') {
+      ElMessage.error('删除失败：' + (error.response?.data?.detail || '未知错误'))
+    }
   }
 }
 

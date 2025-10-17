@@ -24,7 +24,7 @@
 </template>
 
 <script setup>
-import { ref, watch, computed } from 'vue'
+import { ref, computed } from 'vue'
 import ImageUploader from '../components/ImageUploader.vue'
 import { uploadImage } from '../api'
 import { ElMessage } from 'element-plus'
@@ -42,9 +42,8 @@ function fileKey(f) {
 }
 
 function onSelect(selected) {
-  // 去掉旧预览
-  previewUrls.value.forEach(u => URL.revokeObjectURL(u))
-  previewUrls.value = []
+  // 清除旧状态
+  clearPreviewUrls()
   // 去重：同一批次选择中若有重复文件，仅保留一份
   const byKey = new Map()
   selected.forEach(f => { byKey.set(fileKey(f), f) })
@@ -53,62 +52,66 @@ function onSelect(selected) {
   previewUrls.value = files.value.map(f => URL.createObjectURL(f))
 }
 
+function clearPreviewUrls() {
+  previewUrls.value.forEach(u => URL.revokeObjectURL(u))
+  previewUrls.value = []
+}
+
+function clearPageState() {
+  files.value = []
+  clearPreviewUrls()
+  uploaderRef.value?.clear()
+}
+
 async function onUpload() {
   if (!files.value.length) return
-  // 这里仍按单文件接口示例，取第一张上传
+  
   const first = files.value[0]
   const fd = new FormData()
   fd.append('file', first)
+  
   try {
     const { data } = await uploadImage(fd)
     const imageId = data.image_id || data.imageId
-    const submission = {
+    
+    store.addUploadedImage({ id: imageId, name: first.name })
+    store.addSubmission({
       id: imageId,
       filename: first.name,
       status: 'queued',
       createdAt: new Date().toISOString(),
-    }
-    store.addUploadedImage({ id: imageId, name: first.name })
-    store.addSubmission(submission)
-    ElMessage.success('提交成功，请前往“处理进度”查看')
+    })
+    
+    ElMessage.success('提交成功，请前往"处理进度"查看')
+    clearPageState()
   } catch (e) {
     ElMessage.error('提交失败，请重试')
   }
 }
 
-watch(files, (list) => {
-  if (!list.length) {
-    previewUrls.value.forEach(u => URL.revokeObjectURL(u))
-    previewUrls.value = []
-  }
-})
-
 function removeAt(index) {
-  const [removed] = files.value.splice(index, 1)
+  files.value.splice(index, 1)
   const [url] = previewUrls.value.splice(index, 1)
   if (url) URL.revokeObjectURL(url)
 }
 
 function onReupload() {
-  files.value = []
-  previewUrls.value.forEach(u => URL.revokeObjectURL(u))
-  previewUrls.value = []
-  uploaderRef.value?.clear()
+  clearPageState()
   uploaderRef.value?.open()
 }
 
 function onAppend(file) {
-  // 如果与被删除记录完全一致（name+size+lastModified），则忽略；
-  // 但若用户同名不同内容（size 或 lastModified 变了），允许重新添加。
   const key = fileKey(file)
   const existsIndex = files.value.findIndex(f => fileKey(f) === key)
+  
   if (existsIndex !== -1) {
-    // 如果已存在同一文件，先移除旧的预览，替换为最新选择
+    // 替换已存在的文件
     const oldUrl = previewUrls.value[existsIndex]
     if (oldUrl) URL.revokeObjectURL(oldUrl)
-    files.value.splice(existsIndex, 1, file)
-    previewUrls.value.splice(existsIndex, 1, URL.createObjectURL(file))
+    files.value[existsIndex] = file
+    previewUrls.value[existsIndex] = URL.createObjectURL(file)
   } else {
+    // 添加新文件
     files.value.push(file)
     previewUrls.value.push(URL.createObjectURL(file))
   }
