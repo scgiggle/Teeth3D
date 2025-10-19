@@ -276,7 +276,15 @@ function deleteProject(p) {
 .panel-header :deep(.el-input__inner) {
   background-image: none !important;
 }
-.recent-tasks .task-card { padding: 12px; border-radius: 6px; margin-bottom: 12px; background: #fafafa; }
+.recent-tasks .task-card {
+  padding: 12px;
+  border-radius: 6px;
+  margin-bottom: 12px;
+  background: #fff;
+  border: 1px solid #e8eef4;         /* 细线边框 */
+  box-shadow: 0 1px 3px rgba(0,0,0,0.03);
+  display: block;
+}
 .task-head { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:8px; }
 .task-title { max-width: 70%; }
 .task-meta { color:#999; font-size:12px; margin-top:4px; }
