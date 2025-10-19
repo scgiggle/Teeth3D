@@ -98,9 +98,7 @@
       </el-tab-pane>
 
       <el-tab-pane label="模型查看" name="models">
-        <div class="coming-soon">
-          <el-empty description="模型查看功能待开发" />
-        </div>
+        <ModelCheck />
       </el-tab-pane>
     </el-tabs>
 
@@ -116,6 +114,7 @@ import { uploadImage, createProject, uploadProjectImage, listProjects, deletePro
 import { ElMessage, ElMessageBox } from 'element-plus'
 import Segmentation from '../components/Segmentation.vue'
 import HomePage from '../components/HomePage.vue' 
+import ModelCheck from '../components/ModelCheck.vue'
 
 const router = useRouter()
 const store = useAppStore()
