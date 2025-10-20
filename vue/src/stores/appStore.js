@@ -9,6 +9,14 @@ export const useAppStore = defineStore('app', {
     submissions: [],
   }),
   actions: {
+    // 初始化用户状态（从 localStorage 恢复）
+    initUser() {
+      const token = localStorage.getItem('access_token')
+      if (token) {
+        // 这里可以设置一个简单的用户对象，或者调用 API 获取用户信息
+        this.user = { token }
+      }
+    },
     setUser(user) {
       this.user = user
     },
