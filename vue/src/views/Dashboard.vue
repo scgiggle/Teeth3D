@@ -91,8 +91,8 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
 import { useAppStore } from '../stores/appStore'
 import ImageUploader from '../components/ImageUploader.vue'
 import { uploadImage, createProject, uploadProjectImage, listProjects, deleteProject as deleteProjectAPI } from '../api'
@@ -104,7 +104,10 @@ import ModelCheck from '../components/ModelCheck.vue'
 
 const router = useRouter()
 const store = useAppStore()
-const activeTab = ref('overview')
+const route = useRoute()
+
+// 从 URL 查询参数获取当前标签页，默认为 overview
+const activeTab = ref(route.query.tab || 'overview')
 
 // 表格序号（从 1 开始）
 const indexMethod = (index) => index + 1
@@ -144,6 +147,11 @@ function updateTime() {
   
   currentTime.value = `${year}年${month}月${day}日 ${hours}:${minutes}:${seconds}`
 }
+
+// 监听标签页变化，更新 URL
+watch(activeTab, (newTab) => {
+  router.replace({ query: { ...route.query, tab: newTab } })
+})
 
 onMounted(() => {
   updateTime()
