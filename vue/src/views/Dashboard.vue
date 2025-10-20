@@ -15,7 +15,7 @@
 
       <el-tab-pane label="新建项目" name="new-project">
         <div class="upload-container">
-          <h3>新建重建项目</h3>
+          <h3>新建项目</h3>
           <el-form :model="projectForm" label-width="100px" style="margin-bottom: 16px;">
             <el-row :gutter="16">
               <el-col :span="12">
