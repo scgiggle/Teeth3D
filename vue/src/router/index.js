@@ -2,8 +2,8 @@ import { createRouter, createWebHistory } from 'vue-router'
 import Login from '../views/Login.vue'
 import Dashboard from '../views/Dashboard.vue'
 import UploadImage from '../views/UploadImage.vue'
-import SegmentationResult from '../views/SegmentationResult.vue'
 import ModelViewer from '../views/ModelViewer.vue'
+import SegmentationResult from '../views/SegmentationResult.vue'
 import { useAppStore } from '../stores/appStore'
 
 const router = createRouter({

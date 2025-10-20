@@ -21,7 +21,6 @@
 <script setup>
 import { ref, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import SegmentationOverlay from '../components/SegmentationOverlay.vue'
 import { requestReconstruction } from '../api'
 
 const route = useRoute()
