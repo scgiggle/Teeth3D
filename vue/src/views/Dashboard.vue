@@ -99,6 +99,8 @@ import { uploadImage, createProject, uploadProjectImage, listProjects, deletePro
 import { ElMessage, ElMessageBox } from 'element-plus'
 import Segmentation from '../components/Segmentation.vue'
 import HomePage from '../components/HomePage.vue' 
+import ProcessProgress from '../components/ProcessProgress.vue'
+import ModelCheck from '../components/ModelCheck.vue'
 
 const router = useRouter()
 const store = useAppStore()
