@@ -39,7 +39,7 @@
             </el-form-item>
           </el-form>
 
-          <ImageUploader ref="uploaderRef" @select="onSelect" @append="onAppend" />
+          <ImageUploader ref="uploaderRef" @select="onSelect" @append="onAppend" /> <!-- 直接引入上传图片的组件，就不用使用路由了 -->
           <div v-if="previewUrls.length" style="margin-top: 16px;">
             <h4>预览</h4>
             <div class="gallery">
@@ -79,22 +79,7 @@
       </el-tab-pane>
 
       <el-tab-pane label="处理进度" name="progress">
-        <div class="coming-soon" v-if="!store.submissions.length">
-          <el-empty description="暂无任务，请到“新建项目”提交图像" />
-        </div>
-        <div v-else>
-          <el-table :data="store.submissions" style="width: 100%">
-            <el-table-column prop="id" label="任务ID" width="260" />
-            <el-table-column prop="filename" label="文件名" />
-            <el-table-column prop="status" label="状态" width="120" />
-            <el-table-column prop="createdAt" label="提交时间" width="200" />
-            <el-table-column label="操作" width="160">
-              <template #default="{ row }">
-                <el-button type="primary" link @click="goSeg(row.id)">查看</el-button>
-              </template>
-            </el-table-column>
-          </el-table>
-        </div>
+        <ProcessProgress />
       </el-tab-pane>
 
       <el-tab-pane label="模型查看" name="models">
@@ -115,7 +100,8 @@ import ImageUploader from '../components/ImageUploader.vue'
 import { uploadImage, createProject, uploadProjectImage, listProjects, deleteProject as deleteProjectAPI } from '../api'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import Segmentation from '../components/Segmentation.vue'
-import HomePage from '../components/HomePage.vue' 
+import HomePage from '../components/HomePage.vue'
+import ProcessProgress from '../components/ProcessProgress.vue' 
 
 const router = useRouter()
 const store = useAppStore()
