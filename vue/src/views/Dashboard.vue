@@ -83,9 +83,7 @@
       </el-tab-pane>
 
       <el-tab-pane label="模型查看" name="models">
-        <div class="coming-soon">
-          <el-empty description="模型查看功能待开发" />
-        </div>
+        <ModelCheck />
       </el-tab-pane>
     </el-tabs>
 
@@ -100,8 +98,7 @@ import ImageUploader from '../components/ImageUploader.vue'
 import { uploadImage, createProject, uploadProjectImage, listProjects, deleteProject as deleteProjectAPI } from '../api'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import Segmentation from '../components/Segmentation.vue'
-import HomePage from '../components/HomePage.vue'
-import ProcessProgress from '../components/ProcessProgress.vue' 
+import HomePage from '../components/HomePage.vue' 
 
 const router = useRouter()
 const store = useAppStore()
