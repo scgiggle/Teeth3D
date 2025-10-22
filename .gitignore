@@ -1,2 +1,9 @@
 node_modules
-backend/checkpoint/sam2.1_hiera_large.pt
+
+# Ignore large checkpoints at project root
+checkpoint/*
+!checkpoint/.gitkeep
+
+# In case someone puts checkpoint under backend by mistake
+backend/checkpoint/*
+!backend/checkpoint/.gitkeep
