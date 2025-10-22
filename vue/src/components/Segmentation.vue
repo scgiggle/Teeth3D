@@ -105,7 +105,6 @@ const hideOverlay = ref(false)
 const opacity = ref(1)
 const currentImageIndex = ref(0)
 const displayedImages = ref([
-  new URL('../image/dog.jpg', import.meta.url).href,
   new URL('../image/dog.JPG', import.meta.url).href,
   new URL('../image/bird.jpg', import.meta.url).href,
   new URL('../image/teeth3.JPG', import.meta.url).href,

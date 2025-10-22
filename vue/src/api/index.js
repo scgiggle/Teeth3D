@@ -54,7 +54,17 @@ export const uploadProjectImage = (projectId, formData) => http.post(`/project/$
 export const listProjects = (params) => http.get('/project', { params })
 export const deleteProject = (projectId) => http.delete(`/project/${projectId}`)
 
-// 进度查询接口
+// 任务管理相关接口
+export const getTaskList = (params) => http.get('/tasks', { params })
+export const getTaskProgress = (taskId) => http.get(`/tasks/${taskId}/progress`)
+export const createTask = (data) => http.post('/tasks', data)
+export const pauseTask = (taskId) => http.post(`/tasks/${taskId}/pause`)
+export const resumeTask = (taskId) => http.post(`/tasks/${taskId}/resume`)
+export const retryTask = (taskId) => http.post(`/tasks/${taskId}/retry`)
+export const deleteTask = (taskId) => http.delete(`/tasks/${taskId}`)
+export const downloadTaskResult = (taskId) => http.get(`/tasks/${taskId}/download`, { responseType: 'blob' })
+
+// 进度查询接口（兼容旧版本）
 export const getProcessProgress = (taskId) => http.get(`/process/${taskId}/progress`)
 
 
