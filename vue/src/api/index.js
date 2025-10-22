@@ -54,4 +54,8 @@ export const uploadProjectImage = (projectId, formData) => http.post(`/project/$
 export const listProjects = (params) => http.get('/project', { params })
 export const deleteProject = (projectId) => http.delete(`/project/${projectId}`)
 
+// 进度查询接口
+export const getProcessProgress = (taskId) => http.get(`/process/${taskId}/progress`)
+
+
 

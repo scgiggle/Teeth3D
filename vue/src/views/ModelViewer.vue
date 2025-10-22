@@ -13,7 +13,7 @@
 <script setup>
 import { computed } from 'vue'
 import { useRoute } from 'vue-router'
-import ThreeDModel from '../components/ThreeDModel.vue'
+import ThreeDModel from '../components/ModelCheck.vue'
 
 const route = useRoute()
 const modelUrl = computed(() => `/api/model/${route.params.modelId}`)

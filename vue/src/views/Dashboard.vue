@@ -15,7 +15,7 @@
 
       <el-tab-pane label="新建项目" name="new-project">
         <div class="upload-container">
-          <h3>新建重建项目</h3>
+          <h3>新建项目</h3>
           <el-form :model="projectForm" label-width="100px" style="margin-bottom: 16px;">
             <el-row :gutter="16">
               <el-col :span="12">
@@ -39,7 +39,7 @@
             </el-form-item>
           </el-form>
 
-          <ImageUploader ref="uploaderRef" @select="onSelect" @append="onAppend" />
+          <ImageUploader ref="uploaderRef" @select="onSelect" @append="onAppend" /> <!-- 直接引入上传图片的组件，就不用使用路由了 -->
           <div v-if="previewUrls.length" style="margin-top: 16px;">
             <h4>预览</h4>
             <div class="gallery">
@@ -79,28 +79,11 @@
       </el-tab-pane>
 
       <el-tab-pane label="处理进度" name="progress">
-        <div class="coming-soon" v-if="!store.submissions.length">
-          <el-empty description="暂无任务，请到“新建项目”提交图像" />
-        </div>
-        <div v-else>
-          <el-table :data="store.submissions" style="width: 100%">
-            <el-table-column prop="id" label="任务ID" width="260" />
-            <el-table-column prop="filename" label="文件名" />
-            <el-table-column prop="status" label="状态" width="120" />
-            <el-table-column prop="createdAt" label="提交时间" width="200" />
-            <el-table-column label="操作" width="160">
-              <template #default="{ row }">
-                <el-button type="primary" link @click="goSeg(row.id)">查看</el-button>
-              </template>
-            </el-table-column>
-          </el-table>
-        </div>
+        <ProcessProgress />
       </el-tab-pane>
 
       <el-tab-pane label="模型查看" name="models">
-        <div class="coming-soon">
-          <el-empty description="模型查看功能待开发" />
-        </div>
+        <ModelCheck />
       </el-tab-pane>
     </el-tabs>
 
@@ -108,18 +91,23 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
 import { useAppStore } from '../stores/appStore'
 import ImageUploader from '../components/ImageUploader.vue'
 import { uploadImage, createProject, uploadProjectImage, listProjects, deleteProject as deleteProjectAPI } from '../api'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import Segmentation from '../components/Segmentation.vue'
 import HomePage from '../components/HomePage.vue' 
+import ProcessProgress from '../components/ProcessProgress.vue'
+import ModelCheck from '../components/ModelCheck.vue'
 
 const router = useRouter()
 const store = useAppStore()
-const activeTab = ref('overview')
+const route = useRoute()
+
+// 从 URL 查询参数获取当前标签页，默认为 overview
+const activeTab = ref(route.query.tab || 'overview')
 
 // 表格序号（从 1 开始）
 const indexMethod = (index) => index + 1
@@ -159,6 +147,11 @@ function updateTime() {
   
   currentTime.value = `${year}年${month}月${day}日 ${hours}:${minutes}:${seconds}`
 }
+
+// 监听标签页变化，更新 URL
+watch(activeTab, (newTab) => {
+  router.replace({ query: { ...route.query, tab: newTab } })
+})
 
 onMounted(() => {
   updateTime()
