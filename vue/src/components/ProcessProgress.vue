@@ -32,7 +32,7 @@
               <el-button size="mini" type="danger" plain @click="deleteTask(task.id)">删除</el-button>
             </template>
             <template v-else>
-              <el-button size="mini" type="info">处理中</el-button>
+              <el-button size="mini" type="info">处理中11</el-button>
               <el-button size="mini" type="danger" plain @click="deleteTask(task.id)">删除</el-button>
             </template>
           </div>
