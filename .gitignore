@@ -7,3 +7,4 @@ checkpoint/*
 # In case someone puts checkpoint under backend by mistake
 backend/checkpoint/*
 !backend/checkpoint/.gitkeep
+checkpoint/*.pt
