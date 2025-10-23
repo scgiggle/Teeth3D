@@ -40,7 +40,11 @@ def get_sam2_model_and_predictor():
 
                 model_cfg = "configs/sam2.1/sam2.1_hiera_l.yaml"
                 base_dir = os.path.dirname(os.path.abspath(__file__))
+<<<<<<< HEAD
                 sam2_checkpoint = os.path.join(base_dir, "C:\\Users\\32297\\Desktop\\研究生阶段\\项目\\teeth3d_2\\Teeth3D\\checkpoint\\sam2.1_hiera_large.pt")
+=======
+                sam2_checkpoint = os.path.join(base_dir, "../checkpoint/sam2.1_hiera_large.pt")
+>>>>>>> 22858966ba5cb41d99069ad832e714854ac34b5e
 
                 try:
                     from sam2.build_sam import build_sam2
