@@ -123,7 +123,7 @@ function resetView() {
     controlsRef.update()
     return
   }
-  // 兜底：如果初始位姿未记录，则重新fit
+  // 如果初始位姿未记录，则重新fit
   if (cameraRef && modelRootRef) fitToObject(cameraRef, modelRootRef, 1.25, controlsRef)
 }
 
@@ -182,7 +182,7 @@ async function shareModel() {
   
 }
 
-// 通用：让相机完整框选对象
+// 让相机完整框选对象
 function fitToObject(cam, object, offset = 1.25, ctrls) {
   const box = new THREE.Box3().setFromObject(object)
   const size = box.getSize(new THREE.Vector3())
@@ -227,7 +227,7 @@ onMounted(() => {
 
   const scene = new THREE.Scene()
   const camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 1000)
-  camera.position.set(0, 0, 80)
+  camera.position.set(-50, 100, -80)
 
   const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true })
   renderer.setSize(width, height)
