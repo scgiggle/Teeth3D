@@ -104,12 +104,20 @@ const activeTool = ref('hover')
 const hideOverlay = ref(false)
 const opacity = ref(1)
 const currentImageIndex = ref(0)
-const displayedImages = ref([
+const displayedImages2 = ref([
   new URL('../image/teeth.JPG', import.meta.url).href,
   new URL('../image/teeth2.jpg', import.meta.url).href,
   new URL('../image/teeth3.JPG', import.meta.url).href,
   new URL('../image/teeth4.JPG', import.meta.url).href,
   new URL('../image/teeth5.JPG', import.meta.url).href,
+])
+
+const displayedImages = ref([
+  new URL('../image/DSC_3922.JPG', import.meta.url).href,
+  new URL('../image/DSC_3923.jpg', import.meta.url).href,
+  new URL('../image/DSC_3924.JPG', import.meta.url).href,
+  new URL('../image/DSC_3925.JPG', import.meta.url).href,
+  new URL('../image/DSC_3926.JPG', import.meta.url).href,
 ])
 const hasImages = computed(() => (displayedImages.value && displayedImages.value.length > 0))
 const displayIndexText = computed(() => hasImages.value ? `${currentImageIndex.value + 1}/${displayedImages.value.length}` : '0/0')
@@ -246,16 +254,57 @@ function nextImage() {
   updateDisplayedSrc()
 }
 
-// 提交分割结果
-function submitSegmentation() {
+  // 提交分割结果
+async function submitSegmentation() {
   if (isProcessing.value) {
     ElMessage.info('正在处理，请稍候再操作')
     return
   }
-  ElMessage.success('分割已提交（占位）')
-}
 
-// 更新当前显示的图片
+  try {
+    isProcessing.value = true
+    
+    // 收集所有图片的分割结果
+    const segmentationResults = []
+    
+    for (let i = 0; i < displayedImages.value.length; i++) {
+      const states = imageStates.value[i]
+      if (!states || !states.length) continue
+      
+      const lastState = states[states.length - 1]
+      if (!lastState.point || !lastState.point.length) continue
+
+      // 构建提交数据
+      const data = new FormData()
+      data.append('image_index', i.toString())
+      data.append('point_coords', JSON.stringify(lastState.point || []))
+      data.append('point_labels', JSON.stringify(lastState.label || []))
+      
+      // 发送原始图片而不是带蓝色遮罩的图片
+      const originalImageResponse = await fetch(displayedImages.value[i])
+      const originalImageBlob = await originalImageResponse.blob()
+      data.append('file', originalImageBlob, `original_${i}.png`)
+      
+      // 发送请求
+      const response = await http.post('/segmentation/save', data)
+      segmentationResults.push(response.data)
+    }
+    
+    ElMessage.success('分割结果已保存')
+    return segmentationResults
+  } catch (error) {
+    console.error('提交分割失败:', error)
+    console.error('提交分割失败详细信息:', {
+      response: error.response?.data,
+      status: error.response?.status,
+      headers: error.response?.headers,
+      error: error
+    });
+    ElMessage.error('提交分割失败：' + (error.response?.data?.detail || error.message));
+  } finally {
+    isProcessing.value = false
+  }
+}// 更新当前显示的图片
 function updateDisplayedSrc() {
   const src = displayedImages.value[currentImageIndex.value]
   if (src && dogImg.value) {
@@ -371,7 +420,7 @@ onUnmounted(() => {
 
 .media-box { display: inline-block; position: relative; text-align: left; }
 .actions-row { display:flex; align-items:center; gap:8px }
-.actions-left { display:flex; gap:8px }
-.actions-right { margin-left: auto }
+.actions-left {margin-top:20px; display:flex; gap:8px }
+.actions-right {margin-top:20px; margin-left: auto }
 .choice-way { display: block; unicode-bidi: isolate; margin-bottom: 10px;}
 </style>

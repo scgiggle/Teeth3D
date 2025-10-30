@@ -2,8 +2,7 @@
   <div class="dashboard">
     <!-- 页面标题 -->
     <div class="page-header">
-      <h1>TeethDreamer
-        三维重建系统</h1>
+      <h1>口腔数字孪生平台</h1>
       <p>{{ currentTime }}</p>
     </div>
 

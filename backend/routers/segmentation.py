@@ -266,7 +266,84 @@ def start_to_segment(image: np.ndarray, point_coords: Optional[np.ndarray] = Non
     buf = io.BytesIO()
     composed.save(buf, format='PNG')
     overlay_base64 = "data:image/png;base64," + base64.b64encode(buf.getvalue()).decode()
-    return {"overlay_base64": overlay_base64, "mask_index": int(sorted_ind[0])}
+    
+    # 同时返回mask数组用于保存功能
+    return {"overlay_base64": overlay_base64, "mask_index": int(sorted_ind[0]), "mask": best_mask}
+
+@router.post('/save')
+async def save_segmentation(
+    file: UploadFile = File(...),
+    image_index: str = Form(...),
+    point_coords: Optional[str] = Form(None),
+    point_labels: Optional[str] = Form(None),
+    current_user: User = Depends(get_current_user)
+):
+    """保存分割结果为黑色背景的牙齿图片。
+
+    Args:
+        file: 原始图片
+        image_index: 图片索引
+        point_coords: 点击坐标
+        point_labels: 点击标签
+    """
+    if not file.content_type.startswith('image/'):
+        raise HTTPException(status_code=400, detail="只支持图像文件")
+    
+    try:
+        # 读取原始图片
+        contents = await file.read()
+        pil_img = Image.open(io.BytesIO(contents)).convert("RGB")
+        image = np.array(pil_img)
+        
+        # 解析点击坐标和标签
+        import json
+        pc = None
+        pl = None
+        if point_coords:
+            try:
+                pc = np.asarray(json.loads(point_coords))
+            except Exception:
+                raise HTTPException(status_code=400, detail="point_coords 格式错误")
+        if point_labels:
+            try:
+                pl = np.asarray(json.loads(point_labels))
+            except Exception:
+                raise HTTPException(status_code=400, detail="point_labels 格式错误")
+        
+        # 使用SAM2重新生成mask
+        result = start_to_segment(image, point_coords=pc, point_labels=pl)
+        mask = result["mask"]
+        
+        # 创建结果图像：mask为1的区域保持原图，mask为0的区域变黑
+        result_image = image.copy()
+        # 确保mask是布尔类型
+        mask_bool = mask.astype(bool)
+        result_image[~mask_bool] = [0, 0, 0]  # mask为False的区域设为黑色
+        
+        # 转换为PIL图像
+        result_pil = Image.fromarray(result_image)
+        
+        # 保存路径，直接使用backend/save目录
+        save_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'save')
+        os.makedirs(save_dir, exist_ok=True)
+        
+        # 使用UUID生成随机文件名
+        random_uuid = str(uuid.uuid4())
+        filename = f"{random_uuid}.png"
+        save_path = os.path.join(save_dir, filename)
+        result_pil.save(save_path)
+        
+        return {
+            "message": "分割结果已保存",
+            "file_path": save_path,
+            "image_index": image_index
+        }
+        
+    except Exception as e:
+        print(f"Error in save_segmentation: {str(e)}")  # 添加控制台日志
+        import traceback
+        print(traceback.format_exc())  # 打印完整的错误堆栈
+        raise HTTPException(status_code=500, detail=f"保存分割结果失败: {str(e)}")
 
 @router.post('/predict')
 async def segmentation_predict(
