@@ -11,6 +11,18 @@ from database import Base, get_db
 from routers.auth import get_current_user, User
 
 
+class PatientORM(Base):
+    __tablename__ = "patients"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    patient_id: Mapped[str] = mapped_column(String(50), nullable=False, unique=True)
+    name: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    age: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    gender: Mapped[Optional[str]] = mapped_column(String(10), nullable=True)
+    phone: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
+    created_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
+    updated_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
+
+
 class ProjectORM(Base):
     __tablename__ = "project_data"
     project_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
@@ -21,6 +33,7 @@ class ProjectORM(Base):
     created_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
     updated_at: Mapped[Optional[datetime]] = mapped_column(DateTime)
     user_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    patient_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("patients.id"), nullable=True)
     result_path: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     progress: Mapped[Optional[int]] = mapped_column(Integer, default=0)
     error_message: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
@@ -37,12 +50,31 @@ class ProjectImageORM(Base):
 
 
 class ProjectCreate(BaseModel):
-    project_name: str
+    project_name: str  # 前端传来的患者编号
     reconstruction_type: str
     description: Optional[str] = None
 
 
 router = APIRouter()
+
+
+@router.get("/patients", response_model=dict)
+def list_patients(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """获取所有患者列表"""
+    rows = db.query(PatientORM).order_by(PatientORM.created_at.desc()).all()
+    items = [
+        {
+            "patient_id": r.patient_id,
+            "name": r.name,
+            "age": r.age,
+            "gender": r.gender,
+        }
+        for r in rows
+    ]
+    return {"items": items}
 
 
 @router.get("/", response_model=dict)
@@ -76,20 +108,43 @@ def create_project(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    # 名称唯一性检查
-    exists = db.query(ProjectORM).filter(ProjectORM.project_name == payload.project_name).first()
-    if exists:
-        raise HTTPException(status_code=400, detail="项目名称已存在")
     from zoneinfo import ZoneInfo
     now = datetime.now(ZoneInfo('Asia/Shanghai'))
+    
+    # payload.project_name 实际是患者编号
+    patient_number = payload.project_name
+    
+    # 1. 查找或创建患者记录
+    patient = db.query(PatientORM).filter(PatientORM.patient_id == patient_number).first()
+    if not patient:
+        patient = PatientORM(
+            patient_id=patient_number,
+            created_at=now,
+            updated_at=now
+        )
+        db.add(patient)
+        db.commit()
+        db.refresh(patient)
+    
+    # 2. 生成项目名称：患者编号-1, 患者编号-2...
+    counter = 1
+    while True:
+        project_name = f"{patient_number}-{counter}"
+        exists = db.query(ProjectORM).filter(ProjectORM.project_name == project_name).first()
+        if not exists:
+            break
+        counter += 1
+    
+    # 3. 创建项目记录
     row = ProjectORM(
-        project_name=payload.project_name,
+        project_name=project_name,
         reconstruction_type=payload.reconstruction_type,
         description=payload.description,
         status='重建中',
         created_at=now,
         updated_at=now,
         user_id=current_user.user_id,
+        patient_id=patient.id,
         progress=0,
     )
     db.add(row)

@@ -129,7 +129,7 @@ import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAppStore } from '../stores/appStore'
 import ImageUploader from '../components/ImageUploader.vue'
-import { uploadImage, createProject, uploadProjectImage, listProjects, deleteProject as deleteProjectAPI } from '../api'
+import { uploadImage, createProject, uploadProjectImage, listProjects, deleteProject as deleteProjectAPI, listPatients } from '../api'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import Segmentation from '../components/Segmentation.vue'
 import HomePage from '../components/HomePage.vue' 
@@ -609,6 +609,24 @@ async function deleteProject(row, index) {
 //患者编号输入或选择
 const links = ref<LinkItem[]>([])
 
+// 从后端加载患者列表
+async function loadPatients() {
+  try {
+    const { data } = await listPatients()
+    links.value = (data.items || []).map(patient => {
+      const genderText = patient.gender === 'male' ? '男' : patient.gender === 'female' ? '女' : '其他'
+      return {
+        value: patient.patient_id,
+        link: `${patient.name || '未知'}  ${genderText}  ${patient.age || '未知'}岁`
+      }
+    })
+  } catch (e) {
+    console.error('加载患者列表失败:', e)
+    // 如果加载失败，使用默认数据
+    links.value = loadAll()
+  }
+}
+
 const querySearch = (queryString: string, cb) => {
   const results = queryString
     ? links.value.filter(createFilter(queryString))
@@ -645,7 +663,7 @@ const handleIconClick = (ev: Event) => {
   console.log(ev)
 }
 onMounted(() => {
-  links.value = loadAll()
+  loadPatients()
 })
 
 </script>
