@@ -12,76 +12,111 @@
         <HomePage />
       </el-tab-pane>
 
-      <el-tab-pane label="新建项目" name="new-project">
-        <div class="upload-container">
-          <h3>新建项目</h3>
-          <el-form :model="projectForm" label-width="100px" style="margin-bottom: 16px;">
-            <el-row :gutter="16">
-              <el-col :span="12">
-                <el-form-item label="项目名称">
-                  <el-input v-model="projectForm.projectName" placeholder="输入项目名称" />
+      <el-tab-pane label="重建" name="new-project">
+        <div class="reconstruction-container">
+          <div class="container-header">
+            <h3>重建信息</h3>
+          </div>
+          
+          <div class="container-body">
+            <!-- 左侧:表单和上传 -->
+            <div class="left-section">
+              <el-form :model="projectForm" label-width="100px" style="margin-bottom: 20px;">
+                <el-form-item label="患者编号">
+                  <el-autocomplete
+                    v-model="state"
+                    :fetch-suggestions="querySearch"
+                    popper-class="my-autocomplete"
+                    placeholder="选择或输入患者编号"
+                    @select="handleSelect"
+                  >
+                    <template #suffix>
+                      <el-icon class="el-input__icon" @click="handleIconClick">
+                        <edit />
+                      </el-icon>
+                    </template>
+                    <template #default="{ item }">
+                      <div class="value">{{ item.value }}</div>
+                      <span class="link">{{ item.link }}</span>
+                    </template>
+                  </el-autocomplete>
                 </el-form-item>
-              </el-col>
-              <el-col :span="12">
                 <el-form-item label="重建类型">
                   <el-select v-model="projectForm.reconstructionType" placeholder="选择重建类型" style="width: 100%;">
                     <el-option label="全口重建" value="全口重建" />
-                    <!-- 暂时屏蔽其他重建类型，目前只要全口的（已和老师沟通确认过） -->
-                    <!-- <el-option label="单口重建" value="单口重建" />
-                    <el-option label="局部重建" value="局部重建" /> -->
                   </el-select>
                 </el-form-item>
-              </el-col>
-            </el-row>
-            <el-form-item label="项目描述">
-              <el-input v-model="projectForm.description" type="textarea" rows="3" placeholder="描述重建需求和注意事项" />
-            </el-form-item>
-          </el-form>
+              </el-form>
 
-          <ImageUploader ref="uploaderRef" @select="onSelect" @append="onAppend" /> <!-- 直接引入上传图片的组件，就不用使用路由了 -->
-          <div v-if="previewUrls.length" style="margin-top: 16px;">
-            <h4>预览</h4>
-            <div class="gallery">
-              <div v-for="(item, idx) in items" :key="idx" class="tile">
-                <img :src="item.url" alt="预览" class="thumb" />
-                <div class="meta">
-                  <span class="name" :title="item.file.name">{{ item.file.name }}</span>
-                  <el-button type="danger" link @click="removeAt(idx)">删除</el-button>
+              <ImageUploader ref="uploaderRef" @select="onSelect" @append="onAppend" />
+              <div v-if="previewUrls.length" style="margin-top: 16px;">
+                <h4 style="margin: 0 0 12px 0; font-size: 14px;">预览</h4>
+                <div class="gallery">
+                  <div v-for="(item, idx) in items" :key="idx" class="tile">
+                    <img :src="item.url" alt="预览" class="thumb" />
+                    <div class="meta">
+                      <span class="name" :title="item.file.name">{{ item.file.name }}</span>
+                      <el-button type="danger" link @click="removeAt(idx)">删除</el-button>
+                    </div>
+                  </div>
                 </div>
               </div>
+              <div style="margin-top: 16px;">
+                <el-button type="primary" :disabled="!canSubmit" @click="onCreateProject">提交重建</el-button>
+                <el-button style="margin-left: 8px;" @click="onReupload">重新上传</el-button>
+              </div>
+
+              <div class="history" v-if="store.submissions.length" style="margin-top: 24px;">
+                <h4 style="margin: 0 0 12px 0; font-size: 14px;">最近提交</h4>
+                <el-table :data="store.submissions" size="small" style="width: 100%" @row-click="handleRowClick" :row-class-name="tableRowClassName">
+                  <el-table-column type="index" :index="indexMethod" label="序号" width="60" />
+                  <el-table-column prop="project_name" label="患者编号" width="100" />
+                  <el-table-column prop="reconstruction_type" label="重建类型" width="100" />
+                  <el-table-column prop="created_at" label="提交时间" width="160" />
+                  <el-table-column prop="status" label="完成时间" width="160" />
+                  <el-table-column label="操作" width="60">
+                    <template #default="{ row, $index }">
+                      <el-button type="danger" link @click.stop="deleteProject(row, $index)" size="small">删除</el-button>
+                    </template>
+                  </el-table-column>
+                </el-table>
+              </div>
             </div>
-          </div>
-          <div style="margin-top: 16px;">
-            <el-button type="primary" :disabled="!canSubmit" @click="onCreateProject">提交分割</el-button>
-            <el-button style="margin-left: 8px;" @click="onReupload">重新上传</el-button>
-          </div>
-          <div class="history" v-if="store.submissions.length" style="margin-top: 24px;">
-            <h4>最近提交</h4>
-            <el-table :data="store.submissions" size="small" style="width: 100%">
-              <el-table-column type="index" :index="indexMethod" label="序号" width="160" />
-              <el-table-column prop="project_name" label="项目名称" />
-              <el-table-column prop="reconstruction_type" label="重建类型" width="140" />
-              <el-table-column prop="status" label="项目状态" width="120" />
-              <el-table-column prop="created_at" label="提交时间" width="220" />
-              <el-table-column label="操作" width="100">
-                <template #default="{ row, $index }">
-                  <el-button type="danger" link @click="deleteProject(row, $index)" size="small">删除</el-button>
-                </template>
-              </el-table-column>
-            </el-table>
+
+            <!-- 右侧:3D模型展示 -->
+            <div class="right-section">
+              <div class="model-header">
+                <div class="model-title">
+                  <h4 style="margin: 0; font-size: 14px;">3D 模型预览</h4>
+                  <span v-if="selectedPatient" style="color: #606266; font-size: 13px; margin-left: 12px;">
+                    当前患者: {{ selectedPatient }}
+                  </span>
+                </div>
+                <div v-if="selectedPatient" style="display: flex; gap: 8px; align-items: center;">
+                  <el-radio-group v-model="selectedMeshType" size="small" @change="loadModel">
+                    <el-radio-button label="upper">上牙列</el-radio-button>
+                    <el-radio-button label="lower">下牙列</el-radio-button>
+                  </el-radio-group>
+                  <el-button size="small" @click="resetView">重置视图</el-button>
+                </div>
+              </div>
+              <div class="model-canvas" id="model-canvas">
+                <p v-if="!selectedPatient" style="text-align: center; color: #999; padding-top: 200px;">请选择一个项目查看 3D 模型</p>
+              </div>
+            </div>
           </div>
         </div>
       </el-tab-pane>
 
-      <el-tab-pane label="牙齿分割" name="segment">
+      <!-- <el-tab-pane label="牙齿分割" name="segment">
         <Segmentation />
-      </el-tab-pane>
+      </el-tab-pane> -->
 
-      <el-tab-pane label="处理进度" name="progress">
+      <el-tab-pane label="重建进度" name="progress">
         <ProcessProgress />
       </el-tab-pane>
 
-      <el-tab-pane label="模型查看" name="models">
+      <el-tab-pane label="重建结果" name="models">
         <ModelCheck />
       </el-tab-pane>
     </el-tabs>
@@ -89,8 +124,8 @@
   </div>
 </template>
 
-<script setup>
-import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
+<script lang="ts" setup>
+import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAppStore } from '../stores/appStore'
 import ImageUploader from '../components/ImageUploader.vue'
@@ -100,6 +135,15 @@ import Segmentation from '../components/Segmentation.vue'
 import HomePage from '../components/HomePage.vue' 
 import ProcessProgress from '../components/ProcessProgress.vue'
 import ModelCheck from '../components/ModelCheck.vue'
+import { Edit } from '@element-plus/icons-vue'
+import * as THREE from 'three'
+import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader'
+import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls'
+
+interface LinkItem {
+  value: string
+  link: string
+}
 
 const router = useRouter()
 const store = useAppStore()
@@ -150,26 +194,278 @@ function updateTime() {
 // 监听标签页变化，更新 URL
 watch(activeTab, (newTab) => {
   router.replace({ query: { ...route.query, tab: newTab } })
+  
+  // 当切换到重建页面时，确保 Three.js 场景已初始化
+  if (newTab === 'new-project') {
+    nextTick(() => {
+      if (!scene || !renderer) {
+        initThreeJS()
+      }
+    })
+  }
 })
 
 onMounted(() => {
   updateTime()
   timeInterval = setInterval(updateTime, 1000)
+  
+  // 只有在重建页面才初始化 Three.js
+  if (activeTab.value === 'new-project') {
+    nextTick(() => {
+      initThreeJS()
+    })
+  }
 })
 
 onUnmounted(() => {
   if (timeInterval) {
     clearInterval(timeInterval)
   }
+  disposeThreeJS()
 })
+
+// 3D模型相关状态
+const selectedPatient = ref('')
+const selectedMeshType = ref('upper')
+let scene: THREE.Scene | null = null
+let camera: THREE.PerspectiveCamera | null = null
+let renderer: THREE.WebGLRenderer | null = null
+let controls: OrbitControls | null = null
+let currentModel: THREE.Group | null = null
+
+// 初始化 Three.js 场景
+function initThreeJS() {
+  const container = document.getElementById('model-canvas')
+  if (!container) return
+
+  // 创建场景
+  scene = new THREE.Scene()
+  scene.background = new THREE.Color(0x1a1a1a)
+
+  // 创建相机
+  const width = container.clientWidth
+  const height = container.clientHeight
+  camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 1000)
+  camera.position.set(0, 50, 100)
+
+  // 创建渲染器
+  renderer = new THREE.WebGLRenderer({ antialias: true })
+  renderer.setSize(width, height)
+  renderer.setPixelRatio(window.devicePixelRatio)
+  container.innerHTML = ''
+  container.appendChild(renderer.domElement)
+
+  // 添加轨道控制器
+  controls = new OrbitControls(camera, renderer.domElement)
+  controls.enableDamping = true
+  controls.dampingFactor = 0.05
+  
+  // 启用所有交互功能
+  controls.enableRotate = true    // 左键拖拽旋转
+  controls.enableZoom = true      // 滚轮缩放
+  controls.enablePan = true       // Shift + 左键平移
+  
+  // 设置鼠标按键 - 使用中键平移避免右键冲突
+  controls.mouseButtons = {
+    LEFT: THREE.MOUSE.ROTATE,     // 左键旋转
+    MIDDLE: THREE.MOUSE.PAN,      // 中键平移
+    RIGHT: null                    // 禁用右键，避免浏览器手势冲突
+  }
+  
+  // Shift + 左键 = 平移
+  controls.keys = {
+    LEFT: 'ArrowLeft',
+    UP: 'ArrowUp', 
+    RIGHT: 'ArrowRight',
+    DOWN: 'ArrowDown'
+  }
+  
+  // 禁用画布上的右键菜单
+  renderer.domElement.addEventListener('contextmenu', (e) => {
+    e.preventDefault()
+  })
+  
+
+  // 添加光源
+  const ambientLight = new THREE.AmbientLight(0xffffff, 0.6)
+  scene.add(ambientLight)
+
+  const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8)
+  directionalLight.position.set(50, 50, 50)
+  scene.add(directionalLight)
+
+  const directionalLight2 = new THREE.DirectionalLight(0xffffff, 0.4)
+  directionalLight2.position.set(-50, -50, -50)
+  scene.add(directionalLight2)
+
+  // 添加网格辅助线 - 暗色细网格
+  // const gridHelper = new THREE.GridHelper(100, 20, 0x444444, 0x222222)
+  // scene.add(gridHelper)
+
+  // 启动动画循环
+  animate()
+
+  // 监听窗口大小变化
+  window.addEventListener('resize', onWindowResize)
+}
+
+// 清理 Three.js 资源
+function disposeThreeJS() {
+  window.removeEventListener('resize', onWindowResize)
+  
+  if (currentModel && scene) {
+    scene.remove(currentModel)
+    currentModel.traverse((child) => {
+      if (child instanceof THREE.Mesh) {
+        child.geometry.dispose()
+        if (Array.isArray(child.material)) {
+          child.material.forEach(m => m.dispose())
+        } else {
+          child.material.dispose()
+        }
+      }
+    })
+  }
+  
+  if (renderer) {
+    renderer.dispose()
+  }
+  
+  if (controls) {
+    controls.dispose()
+  }
+}
+
+// 重置视图到初始位置
+function resetView() {
+  if (!camera || !controls) return
+  
+  // 重置相机位置
+  camera.position.set(0, 50, 100)
+  camera.lookAt(0, 0, 0)
+  
+  // 重置控制器目标点
+  controls.target.set(0, 0, 0)
+  controls.update()
+}
+
+// 窗口大小调整
+function onWindowResize() {
+  const container = document.getElementById('model-canvas')
+  if (!container || !camera || !renderer) return
+
+  const width = container.clientWidth
+  const height = container.clientHeight
+
+  camera.aspect = width / height
+  camera.updateProjectionMatrix()
+  renderer.setSize(width, height)
+}
+
+// 动画循环
+function animate() {
+  requestAnimationFrame(animate)
+  
+  if (controls) {
+    controls.update()
+  }
+  
+  if (scene && camera && renderer) {
+    renderer.render(scene, camera)
+  }
+}
+
+// 点击表格行加载3D模型
+function handleRowClick(row) {
+  selectedPatient.value = row.project_name
+  loadModel()
+}
+
+// 表格行样式
+function tableRowClassName({ row }) {
+  if (row.project_name === selectedPatient.value) {
+    return 'selected-row'
+  }
+  return ''
+}
+
+// 加载3D模型
+function loadModel() {
+  if (!scene) return
+  
+  // 移除旧模型
+  if (currentModel) {
+    scene.remove(currentModel)
+    currentModel.traverse((child) => {
+      if (child instanceof THREE.Mesh) {
+        child.geometry.dispose()
+        if (Array.isArray(child.material)) {
+          child.material.forEach(m => m.dispose())
+        } else {
+          child.material.dispose()
+        }
+      }
+    })
+  }
+
+  // 目前阶段：无论选择哪个患者，都从固定路径加载模型
+  const meshType = selectedMeshType.value === 'upper' ? 'Upper' : 'Lower'
+  const modelPath = `/3Dmersh/Pred_${meshType}_Mesh_Tag=TEE_01.obj`
+  
+  console.log(`加载模型: ${selectedPatient.value} - ${selectedMeshType.value === 'upper' ? '上牙列' : '下牙列'}`)
+  console.log(`模型路径: ${modelPath}`)
+  
+  // 使用 OBJLoader 加载模型
+  const loader = new OBJLoader()
+  loader.load(
+    modelPath,
+    (object) => {
+      // 设置材质
+      object.traverse((child) => {
+        if (child instanceof THREE.Mesh) {
+          child.material = new THREE.MeshPhongMaterial({
+            color: 0xf5e6d3,
+            shininess: 30,
+            specular: 0x444444
+          })
+        }
+      })
+
+      // 计算模型中心并调整位置
+      const box = new THREE.Box3().setFromObject(object)
+      const center = box.getCenter(new THREE.Vector3())
+      object.position.sub(center)
+
+      // 调整模型大小以适应视野
+      const size = box.getSize(new THREE.Vector3())
+      const maxDim = Math.max(size.x, size.y, size.z)
+      const scale = 50 / maxDim
+      object.scale.multiplyScalar(scale)
+
+      currentModel = object
+      scene!.add(object)
+
+      console.log('模型加载成功')
+    },
+    (xhr) => {
+      console.log((xhr.loaded / xhr.total * 100) + '% 已加载')
+    },
+    (error) => {
+      console.error('模型加载失败:', error)
+      ElMessage.error('模型加载失败，请检查文件路径')
+    }
+  )
+}
 
 // 上传相关状态
 const uploaderRef = ref(null)
 const files = ref([])
 const previewUrls = ref([])
 const items = computed(() => files.value.map((file, idx) => ({ file, url: previewUrls.value[idx] })))
+// 患者编号
+const state = ref('')
 const projectForm = ref({ projectName: '', reconstructionType: '', description: '' })
-const canSubmit = computed(() => !!projectForm.value.projectName && !!projectForm.value.reconstructionType && files.value.length > 0)
+const canSubmit = computed(() => !!state.value && !!projectForm.value.reconstructionType && files.value.length > 0)
 
 function fileKey(f) {
   return `${f.name}_${f.size}_${f.lastModified}`
@@ -213,6 +509,7 @@ function onReupload() {
 function clearProjectForm() {
   // 清除项目表单
   projectForm.value = { projectName: '', reconstructionType: '', description: '' }
+  state.value = ''
   // 清除文件列表
   files.value = []
   // 释放并清除预览URL
@@ -242,11 +539,16 @@ function goSeg(id) {
 // 新建项目并上传首张图片（接口占位，后端接入 MySQL 表 project_data 与 project_images）
 async function onCreateProject() {
   if (!canSubmit.value) return
+  // 校验图片数量是否为 5 张
+  if (files.value.length !== 5) {
+    ElMessage.warning(`图片数量不符合要求：必须上传 5 张图片才能提交（当前已上传 ${files.value.length} 张）`)
+    return
+  }
   try {
     const { data: p } = await createProject({
-      project_name: projectForm.value.projectName,
+      project_name: state.value,
       reconstruction_type: projectForm.value.reconstructionType,
-      description: projectForm.value.description,
+      description: '',
     })
     const projectId = p.project_id
     // 循环上传所有选择的文件
@@ -258,17 +560,17 @@ async function onCreateProject() {
     // 前端沿用“任务”列表，字段对齐 project_data
     store.addSubmission({
       project_id: String(projectId),
-      project_name: projectForm.value.projectName,
+      project_name: state.value,
       reconstruction_type: projectForm.value.reconstructionType,
       status: p.status ,
       created_at: p.created_at,
     })
-    ElMessage.success('提交成功，正在跳转到牙齿分割页面')
+    // ElMessage.success('提交成功，正在跳转到牙齿分割页面')
     
     // 清除表单和文件状态
     clearProjectForm()
     
-    activeTab.value = 'segment'
+    // activeTab.value = 'segment'
   } catch (e) {
     ElMessage.error('提交失败：' + (e.response?.data?.detail || '未知错误'))
   }
@@ -304,6 +606,48 @@ async function deleteProject(row, index) {
   }
 }
 
+//患者编号输入或选择
+const links = ref<LinkItem[]>([])
+
+const querySearch = (queryString: string, cb) => {
+  const results = queryString
+    ? links.value.filter(createFilter(queryString))
+    : links.value
+  // call callback function to return suggestion objects
+  cb(results)
+}
+const createFilter = (queryString: string) => {
+  return (restaurant: LinkItem) => {
+    return (
+      restaurant.value.toLowerCase().indexOf(queryString.toLowerCase()) === 0
+    )
+  }
+}
+const loadAll = () => {
+  return [
+    { value: 'P10000', link: '张三    男    12岁' },
+    { value: 'P10001', link: '李四  女  16岁' },
+    { value: 'P10002', link: '王五  男  20岁' },
+    { value: 'P10003', link: '赵六  女  24岁' },
+    { value: 'P10004', link: '孙七  男  30岁' },
+    { value: 'P10005', link: '周八  女  10岁' },
+    { value: 'P10006', link: '吴九  男  7岁' },
+    { value: 'P10007', link: '郑十  女  14岁' },
+
+  ]
+}
+    
+const handleSelect = (item: Record<string, any>) => {
+  console.log(item)
+}
+
+const handleIconClick = (ev: Event) => {
+  console.log(ev)
+}
+onMounted(() => {
+  links.value = loadAll()
+})
+
 </script>
 
 <style scoped>
@@ -321,10 +665,94 @@ async function deleteProject(row, index) {
 
 .dashboard-tabs { margin-bottom: 24px }
 
-.upload-container { padding: 20px; background: white; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1) }
+/* 重建页面统一容器 */
+.reconstruction-container {
+  background: white;
+  border-radius: 8px;
+  padding: 24px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  height: calc(100vh - 220px);
+  display: flex;
+  flex-direction: column;
+}
+
+.container-header {
+  margin-bottom: 20px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.container-header h3 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: #303133;
+}
+
+.container-body {
+  flex: 1;
+  display: flex;
+  gap: 24px;
+  overflow: hidden;
+}
+
+.left-section {
+  flex: 0 0 45%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.history {
+  flex: 1;
+  overflow-y: auto;
+  padding-right: 8px;
+}
+
+.right-section {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.model-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.model-title {
+  display: flex;
+  align-items: center;
+}
+
 .gallery { display:flex; flex-wrap:wrap; gap:12px }
-.tile { width:200px }
-.thumb { width:200px; height:130px; object-fit:cover; border:1px solid #eee }
+.tile { width:150px }
+.thumb { width:150px; height:100px; object-fit:cover; border:1px solid #eee; border-radius: 4px; }
+
+.model-canvas {
+  flex: 1;
+  background: #f5f5f5;
+  border-radius: 4px;
+  border: 1px solid #e0e0e0;
+  min-height: 400px;
+  position: relative;
+}
+
+/* 选中行样式 */
+:deep(.selected-row) {
+  background-color: #ecf5ff !important;
+}
+
+:deep(.el-table__row) {
+  cursor: pointer;
+}
+
+:deep(.el-table__row:hover) {
+  background-color: #f5f7fa;
+}
 
 .meta { display:flex; justify-content:space-between; align-items:center; margin-top:4px }
 .name { max-width:140px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap }
@@ -353,7 +781,27 @@ async function deleteProject(row, index) {
   .actions-right { margin-left:0; width:100% }
 }
 
-
+.my-autocomplete li {
+  line-height: 1.2;
+  padding: 12px 7px;
+  margin-bottom: 4px;
+}
+.my-autocomplete li .value {
+  text-overflow: ellipsis;
+  overflow: hidden;
+  line-height: 1.2;
+}
+.my-autocomplete li .link {
+  font-size: 12px;
+  color: #b4b4b4;
+  display: block;
+  line-height: 1.2;
+  margin-top: 0;
+  margin-bottom: 10px;
+}
+.my-autocomplete li .highlighted .link {
+  color: #ddd;
+}
 
 
 </style>

@@ -2,7 +2,7 @@
   <div class="homepage-container">
     <div class="panel recent-tasks">
       <div class="panel-header">
-        <h3>重建进度</h3>
+        <!-- <h3>重建进度</h3> -->
         <p class="progress-subtitle">跟踪所有正在进行的重建任务</p>
       </div>
       <div v-for="task in tasks" :key="task.id" class="task-card">
