@@ -24,6 +24,10 @@ class Settings:
     MYSQL_PASSWORD: str = os.getenv('MYSQL_PASSWORD', '123456')
     MYSQL_DB: str = os.getenv('MYSQL_DB', 'teethdreamer')
 
+    #MongoDB 配置
+    MONGO_HOST: str = os.getenv('MONGO_HOST', 'localhost')
+    MONGO_PORT: int = int(os.getenv('MONGO_PORT', 27017))
+    MONGO_DB: str = os.getenv('MONGO_DB', 'teeth3d_db')
     @property
     def DATABASE_URL(self) -> str:
         return (
@@ -31,5 +35,9 @@ class Settings:
             f"@{self.MYSQL_HOST}:{self.MYSQL_PORT}/{self.MYSQL_DB}"
             f"?charset=utf8mb4"
         )
-
+    
+    @property
+    def MONGO_URL(self) -> str:
+        return f"mongodb://{self.MONGO_HOST}:{self.MONGO_PORT}/{self.MONGO_DB}"
+    
 settings = Settings()

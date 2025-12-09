@@ -3,6 +3,7 @@ import os
 from typing import Optional
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker, DeclarativeBase, scoped_session
+from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorGridFSBucket
 from config import settings
 
 def get_redis() -> Optional[redis.Redis]:
@@ -41,3 +42,13 @@ def get_db():
         yield db
     finally:
         db.close()
+
+# 建立 MongoDB 连接
+mongo_client = AsyncIOMotorClient(settings.MONGO_URL)
+mongo_db = mongo_client[settings.MONGO_DB]
+
+# 依赖注入函数 (用于 FastAPI 路由)
+async def get_mongo_db():
+    return mongo_db
+async def get_mongo_fs():
+    return AsyncIOMotorGridFSBucket(mongo_db)

@@ -70,10 +70,16 @@
                 <h4 style="margin: 0 0 12px 0; font-size: 14px;">最近提交</h4>
                 <el-table :data="store.submissions" size="small" style="width: 100%" @row-click="handleRowClick" :row-class-name="tableRowClassName">
                   <el-table-column type="index" :index="indexMethod" label="序号" width="60" />
-                  <el-table-column prop="project_name" label="患者编号" width="100" />
+                    <el-table-column prop="patient_number" label="患者编号" width="120" />
                   <el-table-column prop="reconstruction_type" label="重建类型" width="100" />
                   <el-table-column prop="created_at" label="提交时间" width="160" />
-                  <el-table-column prop="status" label="完成时间" width="160" />
+                  <el-table-column label="完成时间" width="160">
+                    <template #default="{ row }">
+                      <span v-if="row.status === '重建中'" style="color: #E6A23C;">重建中</span>
+                      <span v-else-if="row.finish_time">{{ row.finish_time }}</span>
+                      <span v-else>-</span>
+                    </template>
+                  </el-table-column>
                   <el-table-column label="操作" width="60">
                     <template #default="{ row, $index }">
                       <el-button type="danger" link @click.stop="deleteProject(row, $index)" size="small">删除</el-button>
@@ -103,6 +109,12 @@
               <div class="model-canvas" id="model-canvas">
                 <p v-if="!selectedPatient" style="text-align: center; color: #999; padding-top: 200px;">请选择一个项目查看 3D 模型</p>
               </div>
+              <ModelActions 
+                v-if="selectedPatient" 
+                :project-id="selectedProjectId" 
+                :patient-name="selectedPatient"
+                :mesh-type="selectedMeshType"
+              />
             </div>
           </div>
         </div>
@@ -130,11 +142,12 @@ import { useRouter, useRoute } from 'vue-router'
 import { useAppStore } from '../stores/appStore'
 import ImageUploader from '../components/ImageUploader.vue'
 import { uploadImage, createProject, uploadProjectImage, listProjects, deleteProject as deleteProjectAPI, listPatients } from '../api'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage, ElMessageBox, ElNotification } from 'element-plus'
 import Segmentation from '../components/Segmentation.vue'
 import HomePage from '../components/HomePage.vue' 
 import ProcessProgress from '../components/ProcessProgress.vue'
 import ModelCheck from '../components/ModelCheck.vue'
+import ModelActions from '../components/ModelActions.vue'
 import { Edit } from '@element-plus/icons-vue'
 import * as THREE from 'three'
 import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader'
@@ -155,20 +168,44 @@ const activeTab = ref(route.query.tab || 'overview')
 // 表格序号（从 1 开始）
 const indexMethod = (index) => index + 1
 
+const projectStatusMap = ref<Record<string, string>>({})
+
 // 初始化时从数据库拉取最近项目，替换本地缓存
-async function loadRecentProjects() {
+async function loadRecentProjects(showNotification = false) {
   try {
     const { data } = await listProjects({ limit: 20 })
     // 用后端数据覆盖本地 submissions
     store.submissions = (data.items || []).map(it => ({
       project_id: String(it.project_id),
       project_name: it.project_name,
+      patient_number: it.patient_number || it.project_name,
       reconstruction_type: it.reconstruction_type,
       status: it.status,
       created_at: it.created_at,
+      finish_time: it.finish_time,
     }))
     // 同步持久化
     localStorage.setItem('submissions', JSON.stringify(store.submissions))
+
+    ;(data.items || []).forEach(it => {
+      const id = String(it.project_id)
+      const prevStatus = projectStatusMap.value[id]
+      if (
+        showNotification &&
+        prevStatus &&
+        prevStatus !== '已完成' &&
+        it.status === '已完成'
+      ) {
+        ElNotification({
+          title: '重建完成',
+          message: `患者 ${it.patient_number || it.project_name} 的牙齿重建已完成`,
+          type: 'success',
+          duration: 5000,
+          position: 'top-right',
+        })
+      }
+      projectStatusMap.value[id] = it.status
+    })
   } catch (e) {
     // 回退到本地缓存
     store.loadSubmissions()
@@ -178,6 +215,7 @@ loadRecentProjects()
 // 当前时间
 const currentTime = ref('')
 let timeInterval = null
+let refreshInterval: number | null = null
 
 function updateTime() {
   const now = new Date()
@@ -215,17 +253,25 @@ onMounted(() => {
       initThreeJS()
     })
   }
+
+  refreshInterval = window.setInterval(() => {
+    loadRecentProjects(true)
+  }, 30000)
 })
 
 onUnmounted(() => {
   if (timeInterval) {
     clearInterval(timeInterval)
   }
+  if (refreshInterval) {
+    clearInterval(refreshInterval)
+  }
   disposeThreeJS()
 })
 
 // 3D模型相关状态
 const selectedPatient = ref('')
+const selectedProjectId = ref('')
 const selectedMeshType = ref('upper')
 let scene: THREE.Scene | null = null
 let camera: THREE.PerspectiveCamera | null = null
@@ -377,13 +423,20 @@ function animate() {
 
 // 点击表格行加载3D模型
 function handleRowClick(row) {
-  selectedPatient.value = row.project_name
+  // 检查项目状态
+  if (row.status !== '已完成') {
+    ElMessage.warning('重建未完成,请稍后再试')
+    return
+  }
+  
+  selectedProjectId.value = String(row.project_id)
+  selectedPatient.value = row.patient_number || row.project_name
   loadModel()
 }
 
 // 表格行样式
 function tableRowClassName({ row }) {
-  if (row.project_name === selectedPatient.value) {
+  if (String(row.project_id) === selectedProjectId.value) {
     return 'selected-row'
   }
   return ''
@@ -560,12 +613,16 @@ async function onCreateProject() {
     // 前端沿用“任务”列表，字段对齐 project_data
     store.addSubmission({
       project_id: String(projectId),
-      project_name: state.value,
+      project_name: p.project_name,
+      patient_number: p.patient_number || state.value,
       reconstruction_type: projectForm.value.reconstructionType,
-      status: p.status ,
+      status: p.status,
       created_at: p.created_at,
+      finish_time: null,
     })
-    // ElMessage.success('提交成功，正在跳转到牙齿分割页面')
+    await ElMessageBox.alert('重建项目已提交，请耐心等待，大约十分钟后可查看。', '提示', {
+      confirmButtonText: '我知道了',
+    })
     
     // 清除表单和文件状态
     clearProjectForm()
@@ -662,6 +719,7 @@ const handleSelect = (item: Record<string, any>) => {
 const handleIconClick = (ev: Event) => {
   console.log(ev)
 }
+
 onMounted(() => {
   loadPatients()
 })
