@@ -1,2 +1,3 @@
 node_modules
 backend/checkpoint/sam2.1_hiera_large.pt
+.vscode/extensions.json
