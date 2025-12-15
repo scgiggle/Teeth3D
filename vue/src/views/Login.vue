@@ -180,11 +180,17 @@ onMounted(() => {
   justify-content: center; 
   align-items: center; 
   min-height: calc(100vh - 150px); /*调整登录表单高度*/
-  padding: 24px; 
+  padding: 24px;
+  background-image: url('../images/background.png');
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
 }
 .box { 
   width: 400px; 
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(10px);
 }
 
 .captcha-container {
