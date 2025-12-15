@@ -14,6 +14,7 @@
 <script setup lang="ts">
 import { Download, Share } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { downloadProjectModels } from '../api'
 
 interface Props {
   projectId: string
@@ -23,21 +24,39 @@ interface Props {
 
 const props = defineProps<Props>()
 
-// 下载模型功能
-function handleDownload() {
-  const meshType = props.meshType === 'upper' ? 'Upper' : 'Lower'
-  const modelPath = `/3Dmersh/Pred_${meshType}_Mesh_Tag=TEE_01.obj`
-  const fileName = `${props.patientName}_${props.meshType === 'upper' ? '上牙列' : '下牙列'}.obj`
-  
-  // 创建一个隐藏的a标签来触发下载
-  const link = document.createElement('a')
-  link.href = modelPath
-  link.download = fileName
-  document.body.appendChild(link)
-  link.click()
-  document.body.removeChild(link)
-  
-  ElMessage.success('模型下载已开始')
+// 下载模型功能 - 下载该患者的所有牙齿模型
+async function handleDownload() {
+  try {
+    ElMessage.info('正在准备下载...')
+    
+    const response = await downloadProjectModels(props.projectId)
+    
+    // 从响应头获取文件名，如果没有则使用默认名称
+    const contentDisposition = response.headers['content-disposition']
+    let filename = `${props.patientName}_牙齿模型.zip`
+    if (contentDisposition) {
+      const filenameMatch = contentDisposition.match(/filename\*?=['"]?(?:UTF-8'')?([^;\n"']+)/)
+      if (filenameMatch) {
+        filename = decodeURIComponent(filenameMatch[1])
+      }
+    }
+    
+    // 创建 Blob 并下载
+    const blob = new Blob([response.data], { type: 'application/zip' })
+    const url = window.URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = filename
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    window.URL.revokeObjectURL(url)
+    
+    ElMessage.success('模型下载已开始')
+  } catch (error: any) {
+    console.error('下载失败:', error)
+    ElMessage.error('下载失败：' + (error.response?.data?.detail || '未知错误'))
+  }
 }
 
 // 分享链接功能

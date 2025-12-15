@@ -1,10 +1,15 @@
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from sqlalchemy import Integer, String, Enum, Text, DateTime, ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column
 from typing import Optional
 from datetime import datetime, timedelta
+import zipfile
+import io
+import os
+from urllib.parse import quote
 
 from bson import ObjectId
 
@@ -248,5 +253,61 @@ async def delete_project(
     db.commit()
     
     return {"message": "项目删除成功", "project_id": project_id}
+
+
+@router.get("/{project_id}/download")
+async def download_project_models(
+    project_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """下载患者的所有牙齿模型（上牙列和下牙列）"""
+    # 校验项目存在且归属当前用户
+    project = db.query(ProjectORM).filter(
+        ProjectORM.project_id == project_id,
+        ProjectORM.user_id == current_user.user_id
+    ).first()
+    
+    if not project:
+        raise HTTPException(status_code=404, detail="项目不存在或无权限下载")
+    
+    if project.status != '已完成':
+        raise HTTPException(status_code=400, detail="项目重建未完成，无法下载")
+    
+    # 获取患者编号
+    patient = db.query(PatientORM).filter(PatientORM.id == project.patient_id).first()
+    patient_number = patient.patient_id if patient else project.project_name
+    
+    # 模型文件路径（目前使用固定路径，后续可根据实际存储路径调整）
+    # 实际项目中应该从 project.result_path 或其他字段获取真实路径
+    base_path = os.path.join(os.path.dirname(__file__), '..', '..', 'vue', '3Dmersh')
+    
+    upper_model_path = os.path.join(base_path, 'Pred_Upper_Mesh_Tag=TEE_01.obj')
+    lower_model_path = os.path.join(base_path, 'Pred_Lower_Mesh_Tag=TEE_01.obj')
+    
+    # 创建 ZIP 文件
+    zip_buffer = io.BytesIO()
+    with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+        # 添加上牙列模型
+        if os.path.exists(upper_model_path):
+            zip_file.write(upper_model_path, f'{patient_number}_上牙列.obj')
+        
+        # 添加下牙列模型
+        if os.path.exists(lower_model_path):
+            zip_file.write(lower_model_path, f'{patient_number}_下牙列.obj')
+    
+    zip_buffer.seek(0)
+    
+    # 返回 ZIP 文件
+    filename = f'{patient_number}_牙齿模型.zip'
+    # 对中文文件名进行 URL 编码
+    encoded_filename = quote(filename, safe='')
+    return StreamingResponse(
+        zip_buffer,
+        media_type='application/zip',
+        headers={
+            'Content-Disposition': f"attachment; filename*=UTF-8''{encoded_filename}"
+        }
+    )
 
 

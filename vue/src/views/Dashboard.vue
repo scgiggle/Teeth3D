@@ -1,11 +1,5 @@
 <template>
   <div class="dashboard">
-    <!-- 页面标题 -->
-    <div class="page-header">
-      <h1>口腔数字孪生平台</h1>
-      <p>{{ currentTime }}</p>
-    </div>
-
     <!-- 标签页导航 -->
     <el-tabs v-model="activeTab" class="dashboard-tabs">
       <el-tab-pane label="首页" name="overview">
@@ -67,13 +61,36 @@
               </div>
 
               <div class="history" v-if="store.submissions.length" style="margin-top: 24px;">
-                <h4 style="margin: 0 0 12px 0; font-size: 14px;">最近提交</h4>
-                <el-table :data="store.submissions" size="small" style="width: 100%" @row-click="handleRowClick" :row-class-name="tableRowClassName">
+                <div class="history-header">
+                  <h4 v-if="selectedRows.length === 0" style="margin: 0; font-size: 14px;">最近提交</h4>
+                  <div v-else class="batch-actions">
+                    <span class="selected-count">已选择 {{ selectedRows.length }} 项</span>
+                    <el-button type="primary" size="small" @click="batchShare">
+                      <el-icon><Share /></el-icon> 分享
+                    </el-button>
+                    <el-button type="success" size="small" @click="batchDownload">
+                      <el-icon><Download /></el-icon> 下载
+                    </el-button>
+                    <el-button type="danger" size="small" @click="batchDelete">
+                      <el-icon><Delete /></el-icon> 删除
+                    </el-button>
+                  </div>
+                </div>
+                <el-table 
+                  ref="tableRef"
+                  :data="store.submissions" 
+                  size="small" 
+                  style="width: 100%" 
+                  @row-click="handleRowClick" 
+                  @selection-change="handleSelectionChange"
+                  :row-class-name="tableRowClassName"
+                >
+                  <el-table-column type="selection" width="45" />
                   <el-table-column type="index" :index="indexMethod" label="序号" width="60" />
-                    <el-table-column prop="patient_number" label="患者编号" width="120" />
-                  <el-table-column prop="reconstruction_type" label="重建类型" width="100" />
-                  <el-table-column prop="created_at" label="提交时间" width="160" />
-                  <el-table-column label="完成时间" width="160">
+                  <el-table-column prop="patient_number" label="患者编号" width="120" />
+                  <el-table-column prop="reconstruction_type" label="重建类型" width="120" />
+                  <el-table-column prop="created_at" label="提交时间" width="200" />
+                  <el-table-column label="完成时间" width="200">
                     <template #default="{ row }">
                       <span v-if="row.status === '重建中'" style="color: #E6A23C;">重建中</span>
                       <span v-else-if="row.finish_time">{{ row.finish_time }}</span>
@@ -141,14 +158,14 @@ import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAppStore } from '../stores/appStore'
 import ImageUploader from '../components/ImageUploader.vue'
-import { uploadImage, createProject, uploadProjectImage, listProjects, deleteProject as deleteProjectAPI, listPatients } from '../api'
+import { uploadImage, createProject, uploadProjectImage, listProjects, deleteProject as deleteProjectAPI, listPatients, downloadProjectModels } from '../api'
 import { ElMessage, ElMessageBox, ElNotification } from 'element-plus'
 import Segmentation from '../components/Segmentation.vue'
 import HomePage from '../components/HomePage.vue' 
 import ProcessProgress from '../components/ProcessProgress.vue'
 import ModelCheck from '../components/ModelCheck.vue'
 import ModelActions from '../components/ModelActions.vue'
-import { Edit } from '@element-plus/icons-vue'
+import { Edit, Share, Download, Delete } from '@element-plus/icons-vue'
 import * as THREE from 'three'
 import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls'
@@ -432,6 +449,123 @@ function handleRowClick(row) {
   selectedProjectId.value = String(row.project_id)
   selectedPatient.value = row.patient_number || row.project_name
   loadModel()
+}
+
+// 表格多选相关
+const tableRef = ref(null)
+const selectedRows = ref([])
+
+function handleSelectionChange(selection) {
+  selectedRows.value = selection
+}
+
+// 批量分享
+function batchShare() {
+  if (selectedRows.value.length === 0) return
+  
+  // 生成所有选中项目的分享链接
+  const shareLinks = selectedRows.value.map(row => {
+    const patientName = row.patient_number || row.project_name
+    const shareUrl = `${window.location.origin}${window.location.pathname}?tab=new-project&projectId=${row.project_id}`
+    return `${patientName}: ${shareUrl}`
+  }).join('\n\n')
+  
+  // 合并所有链接用于复制
+  const allUrls = selectedRows.value.map(row => 
+    `${window.location.origin}${window.location.pathname}?tab=new-project&projectId=${row.project_id}`
+  ).join('\n')
+  
+  // 展示对话框让用户自己复制
+  ElMessageBox.alert(
+    `<div style="position: relative; word-break: break-all; padding: 10px 40px 10px 10px; background: #f5f7fa; border-radius: 4px; font-family: monospace; font-size: 13px; max-height: 300px; overflow-y: auto; white-space: pre-wrap;">
+${shareLinks}
+      <button onclick="navigator.clipboard.writeText(\`${allUrls}\`).then(() => { alert('所有链接已复制到剪贴板！'); })" style="position: absolute; top: 8px; right: 8px; width: 28px; height: 28px; padding: 0; background: white; border: 1px solid #dcdfe6; border-radius: 4px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.3s;" onmouseover="this.style.borderColor='#409eff'; this.style.color='#409eff';" onmouseout="this.style.borderColor='#dcdfe6'; this.style.color='#606266';" title="复制所有链接">
+        <svg style="width: 14px; height: 14px; fill: currentColor;" viewBox="0 0 1024 1024"><path d="M768 832a64 64 0 0 1-64 64H192a64 64 0 0 1-64-64V320a64 64 0 0 1 64-64h512a64 64 0 0 1 64 64v512z m64-576v576a128 128 0 0 1-128 128H192a128 128 0 0 1-128-128V320a128 128 0 0 1 128-128h512a128 128 0 0 1 128 128z m64-64a64 64 0 0 1 64 64v512a32 32 0 0 1-64 0V256H384a32 32 0 0 1 0-64h512z"/></svg>
+      </button>
+    </div>`,
+    `批量分享链接 (${selectedRows.value.length} 个项目)`,
+    {
+      confirmButtonText: '关闭',
+      dangerouslyUseHTMLString: true,
+    }
+  )
+}
+
+// 批量下载
+async function batchDownload() {
+  if (selectedRows.value.length === 0) return
+  const completedRows = selectedRows.value.filter(r => r.status === '已完成')
+  if (completedRows.length === 0) {
+    ElMessage.warning('选中的项目均未完成，无法下载')
+    return
+  }
+  
+  ElMessage.info(`正在准备下载 ${completedRows.length} 个项目的模型...`)
+  
+  // 逐个下载每个项目的模型
+  for (const row of completedRows) {
+    try {
+      const response = await downloadProjectModels(row.project_id)
+      
+      // 获取文件名
+      const patientName = row.patient_number || row.project_name
+      const filename = `${patientName}_牙齿模型.zip`
+      
+      // 创建 Blob 并下载
+      const blob = new Blob([response.data], { type: 'application/zip' })
+      const url = window.URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = filename
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      window.URL.revokeObjectURL(url)
+    } catch (error) {
+      console.error(`下载项目 ${row.project_id} 失败:`, error)
+    }
+  }
+  
+  ElMessage.success(`已完成 ${completedRows.length} 个项目的模型下载`)
+}
+
+// 批量删除
+async function batchDelete() {
+  if (selectedRows.value.length === 0) return
+  
+  try {
+    await ElMessageBox.confirm(
+      `确定要删除选中的 ${selectedRows.value.length} 个项目吗？此操作不可撤销。`,
+      '确认批量删除',
+      {
+        confirmButtonText: '确定删除',
+        cancelButtonText: '取消',
+        type: 'warning',
+      }
+    )
+    
+    // 逐个删除
+    for (const row of selectedRows.value) {
+      await deleteProjectAPI(row.project_id)
+      const index = store.submissions.findIndex(s => s.project_id === row.project_id)
+      if (index > -1) {
+        store.submissions.splice(index, 1)
+      }
+    }
+    
+    // 同步持久化
+    localStorage.setItem('submissions', JSON.stringify(store.submissions))
+    
+    // 清空选择
+    selectedRows.value = []
+    tableRef.value?.clearSelection()
+    
+    ElMessage.success('批量删除成功')
+  } catch (error) {
+    if (error !== 'cancel') {
+      ElMessage.error('删除失败：' + (error.response?.data?.detail || '未知错误'))
+    }
+  }
 }
 
 // 表格行样式
@@ -730,39 +864,70 @@ onMounted(() => {
 :root { --opacity: 1; }
 
 .dashboard {
-  padding: 24px;
-  background-color: #f5f5f5;
-  min-height: calc(100vh - 60px);
+  padding: 16px;
+  background: #f0f2f5;
+  min-height: calc(100vh - 76px);
+  margin: 0 8px 8px 8px;
+  border-radius: 12px;
 }
 
-.page-header { margin-bottom: 24px }
-.page-header h1 { font-size: 28px; font-weight: 600; margin: 0 0 8px 0; color: #303133 }
-.page-header p { color: #606266; margin: 0 }
+.dashboard-tabs {
+  background: white;
+  border-radius: 12px;
+  padding: 20px 24px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+  min-height: calc(100vh - 120px);
+}
 
-.dashboard-tabs { margin-bottom: 24px }
+:deep(.el-tabs__header) {
+  margin-bottom: 20px;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+:deep(.el-tabs__nav-wrap::after) {
+  display: none;
+}
+
+:deep(.el-tabs__item) {
+  font-size: 15px;
+  font-weight: 500;
+  color: #8c8c8c;
+  padding: 0 20px;
+  height: 42px;
+  line-height: 42px;
+}
+
+:deep(.el-tabs__item:hover) {
+  color: #4a90e2;
+}
+
+:deep(.el-tabs__item.is-active) {
+  color: #4a90e2;
+  font-weight: 600;
+}
+
+:deep(.el-tabs__active-bar) {
+  background: #4a90e2;
+  height: 3px;
+  border-radius: 2px;
+}
 
 /* 重建页面统一容器 */
 .reconstruction-container {
-  background: white;
-  border-radius: 8px;
-  padding: 24px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
   height: calc(100vh - 220px);
   display: flex;
   flex-direction: column;
 }
 
 .container-header {
-  margin-bottom: 20px;
-  padding-bottom: 16px;
-  border-bottom: 1px solid #e0e0e0;
+  margin-bottom: 24px;
 }
 
 .container-header h3 {
   margin: 0;
   font-size: 18px;
   font-weight: 600;
-  color: #303133;
+  color: #262626;
 }
 
 .container-body {
@@ -773,7 +938,7 @@ onMounted(() => {
 }
 
 .left-section {
-  flex: 0 0 45%;
+  flex: 0 0 48%;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -782,7 +947,34 @@ onMounted(() => {
 .history {
   flex: 1;
   overflow-y: auto;
-  padding-right: 8px;
+  margin-top: 20px;
+}
+
+.history-header {
+  display: flex;
+  align-items: center;
+  margin-bottom: 12px;
+  min-height: 32px;
+}
+
+.history h4 {
+  color: #262626;
+  font-weight: 600;
+  font-size: 14px;
+  margin: 0 0 12px 0;
+}
+
+.batch-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.selected-count {
+  color: #4a90e2;
+  font-size: 14px;
+  font-weight: 500;
+  margin-right: 8px;
 }
 
 .right-section {
@@ -796,7 +988,7 @@ onMounted(() => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 12px;
+  margin-bottom: 16px;
 }
 
 .model-title {
@@ -804,36 +996,108 @@ onMounted(() => {
   align-items: center;
 }
 
-.gallery { display:flex; flex-wrap:wrap; gap:12px }
-.tile { width:150px }
-.thumb { width:150px; height:100px; object-fit:cover; border:1px solid #eee; border-radius: 4px; }
+.model-title h4 {
+  color: #262626;
+  font-weight: 600;
+  font-size: 14px;
+  margin: 0;
+}
+
+.gallery { display:flex; flex-wrap:wrap; gap:12px; margin-top: 12px; }
+.tile { width:120px }
+.thumb { width:120px; height:80px; object-fit:cover; border:1px solid #e8e8e8; border-radius: 6px; }
 
 .model-canvas {
   flex: 1;
-  background: #f5f5f5;
-  border-radius: 4px;
-  border: 1px solid #e0e0e0;
-  min-height: 400px;
-  max-height: calc(100vh - 400px);
+  background: #1a1a2e;
+  border-radius: 8px;
+  min-height: 350px;
   position: relative;
   overflow: hidden;
 }
 
-/* 选中行样式 */
+/* 表格样式 */
+:deep(.el-table) {
+  --el-table-border-color: #f0f0f0;
+  --el-table-header-bg-color: #fafafa;
+  font-size: 13px;
+}
+
+:deep(.el-table th.el-table__cell) {
+  background: #fafafa;
+  color: #8c8c8c;
+  font-weight: 500;
+  font-size: 13px;
+  padding: 10px 0;
+}
+
+:deep(.el-table td.el-table__cell) {
+  padding: 12px 0;
+  color: #595959;
+}
+
 :deep(.selected-row) {
-  background-color: #ecf5ff !important;
+  background-color: #e6f4ff !important;
 }
 
 :deep(.el-table__row) {
   cursor: pointer;
 }
 
-:deep(.el-table__row:hover) {
-  background-color: #f5f7fa;
+:deep(.el-table__row:hover > td) {
+  background-color: #fafafa !important;
+}
+
+/* 表单样式 */
+:deep(.el-form-item__label) {
+  color: #595959;
+  font-weight: 500;
+  font-size: 14px;
+}
+
+:deep(.el-input__wrapper),
+:deep(.el-select__wrapper) {
+  border-radius: 6px;
+  box-shadow: 0 0 0 1px #d9d9d9 inset;
+}
+
+:deep(.el-input__wrapper:hover),
+:deep(.el-select__wrapper:hover) {
+  box-shadow: 0 0 0 1px #4a90e2 inset;
+}
+
+:deep(.el-input__wrapper.is-focus),
+:deep(.el-select__wrapper.is-focus) {
+  box-shadow: 0 0 0 1px #4a90e2 inset;
+}
+
+/* 按钮样式 */
+:deep(.el-button--primary) {
+  background: #4a90e2;
+  border-color: #4a90e2;
+  border-radius: 6px;
+  font-weight: 500;
+}
+
+:deep(.el-button--primary:hover) {
+  background: #3a7bc8;
+  border-color: #3a7bc8;
+}
+
+:deep(.el-button--default) {
+  border-radius: 6px;
+  border-color: #d9d9d9;
+  color: #595959;
+}
+
+:deep(.el-button--default:hover) {
+  color: #4a90e2;
+  border-color: #4a90e2;
+  background: white;
 }
 
 .meta { display:flex; justify-content:space-between; align-items:center; margin-top:4px }
-.name { max-width:140px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap }
+.name { max-width:100px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color: #8c8c8c; font-size: 12px; }
 
 /* Controls and panels */
 .controls { margin-top:16px }
@@ -880,8 +1144,6 @@ onMounted(() => {
 .my-autocomplete li .highlighted .link {
   color: #ddd;
 }
-
-
 </style>
 
 

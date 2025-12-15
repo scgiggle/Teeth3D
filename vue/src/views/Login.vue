@@ -1,39 +1,74 @@
 <template>
   <div class="center">
-    <el-card class="box">
-      <h2>{{ isRegisterMode ? '注册' : '登录' }}</h2>
-      <el-form :model="form" label-width="80px" @submit.prevent>
-        <el-form-item label="用户名">
-          <el-input v-model="form.username" />
-        </el-form-item>
-        <el-form-item label="密码">
-          <el-input v-model="form.password" show-password />
-        </el-form-item>
-        <el-form-item label="确认密码" v-if="isRegisterMode">
-          <el-input v-model="form.confirmPassword" show-password />
-        </el-form-item>
-        <el-form-item label="邮箱" v-if="isRegisterMode">
-          <el-input v-model="form.email" type="email" />
-        </el-form-item>
-        <el-form-item label="验证码">
-          <div class="captcha-container">
-            <el-input v-model="form.captcha" placeholder="请输入验证码" style="width: 150px;" />
-            <div class="captcha-image" @click="refreshCaptcha">
-              <img v-if="captchaImage" :src="captchaImage" alt="验证码" />
-              <div v-else class="captcha-loading">加载中...</div>
-            </div>
+    <div class="login-box">
+      <div class="login-header">
+        <h1>{{ isRegisterMode ? '注册' : '登录' }}</h1>
+        <p>{{ isRegisterMode ? '创建账号以继续' : '请登录以继续' }}</p>
+      </div>
+      
+      <div class="login-form">
+        <div class="input-group">
+          <input 
+            type="text" 
+            v-model="form.username" 
+            placeholder="用户名"
+            class="login-input"
+          />
+        </div>
+        
+        <div class="input-group">
+          <input 
+            :type="showPassword ? 'text' : 'password'" 
+            v-model="form.password" 
+            placeholder="密码"
+            class="login-input"
+          />
+        </div>
+        
+        <div class="input-group" v-if="isRegisterMode">
+          <input 
+            :type="showPassword ? 'text' : 'password'" 
+            v-model="form.confirmPassword" 
+            placeholder="确认密码"
+            class="login-input"
+          />
+        </div>
+        
+        <div class="input-group" v-if="isRegisterMode">
+          <input 
+            type="email" 
+            v-model="form.email" 
+            placeholder="邮箱"
+            class="login-input"
+          />
+        </div>
+        
+        <div class="captcha-row">
+          <input 
+            type="text" 
+            v-model="form.captcha" 
+            placeholder="验证码"
+            class="login-input captcha-input"
+          />
+          <div class="captcha-image" @click="refreshCaptcha">
+            <img v-if="captchaImage" :src="captchaImage" alt="验证码" />
+            <div v-else class="captcha-loading">加载中...</div>
           </div>
-        </el-form-item>
-        <el-form-item>
-          <div class="button-group">
-            <el-button type="primary" @click="onLogin" v-if="!isRegisterMode">登录</el-button>
-            <el-button @click="toggleMode" v-if="isRegisterMode">返回登录</el-button>
-            <el-button @click="toggleMode" v-if="!isRegisterMode">注册</el-button>
-            <el-button type="primary" @click="onRegister" v-if="isRegisterMode">注册</el-button>
-          </div>
-        </el-form-item>
-      </el-form>
-    </el-card>
+        </div>
+        
+        <button 
+          class="login-btn" 
+          @click="isRegisterMode ? onRegister() : onLogin()"
+        >
+          {{ isRegisterMode ? '注册' : '登录' }}
+        </button>
+      </div>
+      
+      <div class="register-link">
+        <span v-if="!isRegisterMode">没有账号？<a @click="toggleMode">立即注册</a></span>
+        <span v-else>已有账号？<a @click="toggleMode">返回登录</a></span>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -47,6 +82,7 @@ import { register, login, getCaptcha } from '../api'
 const router = useRouter()
 const store = useAppStore()
 const isRegisterMode = ref(false)
+const showPassword = ref(false)
 const form = reactive({ 
   username: '', 
   password: '', 
@@ -105,11 +141,12 @@ async function onLogin() {
       captcha_id: captchaId.value
     })
     
-    // 存储token
-    localStorage.setItem('access_token', data.access_token)
-    
     ElMessage.success('登录成功')
-    store.setUser({ username: form.username })
+    // 存储用户信息（包含 token 和 username）
+    store.setUser({ 
+      username: form.username,
+      token: data.access_token 
+    })
     const redirect = router.currentRoute.value.query.redirect || '/'
     router.push(redirect)
   } catch (error) {
@@ -179,43 +216,113 @@ onMounted(() => {
   display: flex; 
   justify-content: center; 
   align-items: center; 
-  min-height: calc(100vh - 150px); /*调整登录表单高度*/
-  padding: 24px;
+  min-height: calc(100vh - 76px);
+  margin: 0 8px 8px 8px;
+  border-radius: 12px;
+  overflow: hidden;
+  position: relative;
+}
+.center::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
   background-image: url('../images/background.png');
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
 }
-.box { 
-  width: 400px; 
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-  background: rgba(255, 255, 255, 0.95);
-  backdrop-filter: blur(10px);
+
+.login-box {
+  width: 380px;
+  background: white;
+  border-radius: 16px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+  padding: 40px 36px;
+  position: relative;
+  z-index: 1;
 }
 
-.captcha-container {
+.login-header {
+  margin-bottom: 32px;
+}
+
+.login-header h1 {
+  font-size: 28px;
+  font-weight: 700;
+  color: #1a1a2e;
+  margin: 0 0 8px 0;
+}
+
+.login-header p {
+  font-size: 14px;
+  color: #8c8c8c;
+  margin: 0;
+}
+
+.login-form {
   display: flex;
-  align-items: center;
-  gap: 8px;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.input-group {
+  position: relative;
+}
+
+.login-input {
   width: 100%;
+  height: 50px;
+  padding: 0 16px;
+  border: 1.5px solid #e8e8e8;
+  border-radius: 10px;
+  font-size: 15px;
+  color: #333;
+  background: #fafafa;
+  transition: all 0.3s ease;
+  box-sizing: border-box;
+}
+
+.login-input:focus {
+  outline: none;
+  border-color: #4a6cf7;
+  background: white;
+  box-shadow: 0 0 0 3px rgba(74, 108, 247, 0.1);
+}
+
+.login-input::placeholder {
+  color: #b8b8b8;
+}
+
+.captcha-row {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.captcha-input {
+  flex: 1;
 }
 
 .captcha-image {
   cursor: pointer;
-  border: 1px solid #dcdfe6;
-  border-radius: 4px;
+  border: 1.5px solid #e8e8e8;
+  border-radius: 10px;
   overflow: hidden;
-  flex-shrink: 0;
   height: 50px;
   width: 120px;
   display: flex;
   align-items: center;
   justify-content: center;
-  background-color: #f5f7fa;
+  background-color: #fafafa;
+  flex-shrink: 0;
+  transition: all 0.3s ease;
 }
 
 .captcha-image:hover {
-  border-color: #409eff;
+  border-color: #4a6cf7;
 }
 
 .captcha-image img {
@@ -225,14 +332,54 @@ onMounted(() => {
 }
 
 .captcha-loading {
-  color: #909399;
+  color: #b8b8b8;
   font-size: 12px;
 }
 
-.button-group {
-  display: flex;
-  justify-content: space-between;
+.login-btn {
   width: 100%;
+  height: 50px;
+  margin-top: 8px;
+  background: linear-gradient(135deg, #4a6cf7, #6366f1);
+  border: none;
+  border-radius: 10px;
+  color: white;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.login-btn:hover {
+  background: linear-gradient(135deg, #3b5bdb, #5558e3);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(74, 108, 247, 0.4);
+}
+
+.login-btn:active {
+  transform: translateY(0);
+}
+
+.register-link {
+  text-align: center;
+  margin-top: 24px;
+  padding-top: 24px;
+  border-top: 1px solid #f0f0f0;
+  color: #8c8c8c;
+  font-size: 14px;
+}
+
+.register-link a {
+  color: #4a6cf7;
+  cursor: pointer;
+  font-weight: 600;
+  margin-left: 4px;
+}
+
+.register-link a:hover {
+  text-decoration: underline;
 }
 </style>
 

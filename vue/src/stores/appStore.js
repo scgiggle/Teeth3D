@@ -12,13 +12,22 @@ export const useAppStore = defineStore('app', {
     // 初始化用户状态（从 localStorage 恢复）
     initUser() {
       const token = localStorage.getItem('access_token')
-      if (token) {
-        // 这里可以设置一个简单的用户对象，或者调用 API 获取用户信息
-        this.user = { token }
+      const username = localStorage.getItem('username')
+      if (token && username) {
+        this.user = { token, username }
       }
     },
     setUser(user) {
       this.user = user
+      if (user) {
+        // 保存到 localStorage
+        if (user.token) localStorage.setItem('access_token', user.token)
+        if (user.username) localStorage.setItem('username', user.username)
+      } else {
+        // 清除 localStorage
+        localStorage.removeItem('access_token')
+        localStorage.removeItem('username')
+      }
     },
     addUploadedImage(image) {
       this.uploadedImages.push(image)

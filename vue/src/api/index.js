@@ -54,6 +54,7 @@ export const uploadProjectImage = (projectId, formData) => http.post(`/project/$
 export const listProjects = (params) => http.get('/project', { params })
 export const deleteProject = (projectId) => http.delete(`/project/${projectId}`)
 export const listPatients = () => http.get('/project/patients')
+export const downloadProjectModels = (projectId) => http.get(`/project/${projectId}/download`, { responseType: 'blob' })
 
 // 任务管理相关接口
 export const getTaskList = (params) => http.get('/tasks', { params })
