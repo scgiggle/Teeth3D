@@ -814,7 +814,9 @@ onMounted(() => {
   border-radius: 4px;
   border: 1px solid #e0e0e0;
   min-height: 400px;
+  max-height: calc(100vh - 400px);
   position: relative;
+  overflow: hidden;
 }
 
 /* 选中行样式 */
