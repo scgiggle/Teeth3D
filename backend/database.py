@@ -6,18 +6,27 @@ from sqlalchemy.orm import sessionmaker, DeclarativeBase, scoped_session
 from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorGridFSBucket
 from config import settings
 
+# Redis 连接池
+redis_pool = None
+
+def init_redis_pool():
+    global redis_pool
+    redis_pool = redis.ConnectionPool(
+        host=os.getenv('REDIS_HOST', 'localhost'),
+        port=int(os.getenv('REDIS_PORT', 6379)),
+        db=int(os.getenv('REDIS_DB', 0)),
+        decode_responses=True
+    )
+
 def get_redis() -> Optional[redis.Redis]:
-    """获取 Redis 客户端"""
+    """获取 Redis 客户端 (复用连接池)"""
+    global redis_pool
+    if redis_pool is None:
+        init_redis_pool()
+    
     try:
-        client = redis.Redis(
-            host=os.getenv('REDIS_HOST', 'localhost'),
-            port=int(os.getenv('REDIS_PORT', 6379)),
-            db=int(os.getenv('REDIS_DB', 0)),
-            decode_responses=True
-        )
-        # 测试连接
-        client.ping()
-        return client
+        # Redis() 实例是轻量级的，它会利用 connection_pool
+        return redis.Redis(connection_pool=redis_pool)
     except Exception as e:
         print(f"Redis connection error: {e}")
         return None

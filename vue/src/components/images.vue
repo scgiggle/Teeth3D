@@ -214,6 +214,11 @@ const files = ref([])
 const isDragging = ref(false)
 const status = ref('idle') // idle, processing, finished
 const fileInputRef = ref(null)
+const currentFile = ref(null)
+const previewVisible = ref(false)
+const isEditing = ref(false)
+const cropperImgRef = ref(null)
+let cropperInstance = null
 
 // LIFECYCLE
 onMounted(() => {
