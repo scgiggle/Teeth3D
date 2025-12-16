@@ -1,138 +1,176 @@
-import tkinter as tk
-from tkinter import filedialog, messagebox
+"""
+图片处理路由模块
+功能：裁剪到 4:3 (2677x2008)，文件名以 _0 或 _1 结尾的自动垂直镜像
+"""
+from fastapi import APIRouter, UploadFile, File, Form, HTTPException
+from fastapi.responses import StreamingResponse
 from PIL import Image
-import os
+from typing import List, Optional
+import io
+import zipfile
 
-class ImageProcessorGUI:
-    def __init__(self, root):
-        self.root = root
-        self.root.title("智能图片处理工具")
-        self.root.geometry("800x600") # 界面高度调小了一些，因为去掉了中间的选项
-        
-        self.image_files = []
-        
-        # 创建界面元素
-        self.create_widgets()
+router = APIRouter()
+
+# 配置常量
+TARGET_WIDTH = 2677
+TARGET_HEIGHT = 2008
+
+
+def crop_image(img: Image.Image) -> Image.Image:
+    """裁剪图片到指定尺寸 (4:3)，居中裁剪"""
+    width, height = img.size
     
-    def create_widgets(self):
-        # 标题
-        title_label = tk.Label(self.root, text="图片智能处理工具", font=("Arial", 16, "bold"))
-        title_label.pack(pady=20)
-        
-        # 选择文件按钮
-        select_btn = tk.Button(self.root, text="选择图片文件", command=self.select_files, 
-                               width=20, height=2, bg="#4CAF50", fg="white", font=("Arial", 10))
-        select_btn.pack(pady=10)
-        
-        # 显示已选择文件数量
-        self.file_count_label = tk.Label(self.root, text="未选择文件", font=("Arial", 10))
-        self.file_count_label.pack(pady=5)
-        
-        # 说明文字 (替代原来的选项框)
-        info_text = "自动处理规则：\n所有图片均裁剪\n文件名结尾为 _0 或 _1 的图片自动进行上下镜像"
-        info_label = tk.Label(self.root, text=info_text, font=("Arial", 9), fg="gray", justify="center")
-        info_label.pack(pady=10)
-        
-        # 处理按钮
-        process_btn = tk.Button(self.root, text="开始智能处理", command=self.process_images,
-                                width=20, height=2, bg="#2196F3", fg="white", font=("Arial", 10, "bold"))
-        process_btn.pack(pady=10)
-        
-        # 状态标签
-        self.status_label = tk.Label(self.root, text="", font=("Arial", 9), fg="green")
-        self.status_label.pack(pady=5)
+    # 计算居中裁剪区域
+    left = (width - TARGET_WIDTH) // 2
+    top = (height - TARGET_HEIGHT) // 2
+    right = left + TARGET_WIDTH
+    bottom = top + TARGET_HEIGHT
     
-    def select_files(self):
-        """选择图片文件"""
-        files = filedialog.askopenfilenames(
-            title="选择图片文件",
-            filetypes=[
-                ("图片文件", "*.jpg *.jpeg *.png *.bmp *.gif *.tiff"),
-                ("所有文件", "*.*")
-            ]
+    # 如果图片小于目标尺寸，调整裁剪区域
+    if width < TARGET_WIDTH or height < TARGET_HEIGHT:
+        left = max(0, left)
+        top = max(0, top)
+        right = min(width, right)
+        bottom = min(height, bottom)
+    
+    return img.crop((left, top, right, bottom))
+
+
+def mirror_image(img: Image.Image) -> Image.Image:
+    """垂直镜像图片（上下翻转）"""
+    return img.transpose(Image.FLIP_TOP_BOTTOM)
+
+
+def needs_mirror(filename: str) -> bool:
+    """判断文件名是否需要镜像（以 _0 或 _1 结尾）"""
+    import os
+    name_no_ext = os.path.splitext(filename)[0]
+    return name_no_ext.endswith('_0') or name_no_ext.endswith('_1')
+
+
+def process_single_image(file_bytes: bytes, filename: str, 
+                          manual_crop: Optional[dict] = None) -> bytes:
+    """
+    处理单张图片
+    
+    Args:
+        file_bytes: 图片二进制数据
+        filename: 文件名（用于判断是否需要镜像）
+        manual_crop: 手动裁剪参数 {left, top, width, height}，如果为 None 则自动居中裁剪
+    
+    Returns:
+        处理后的图片二进制数据
+    """
+    img = Image.open(io.BytesIO(file_bytes))
+    
+    # 确保是 RGB 模式
+    if img.mode != 'RGB':
+        img = img.convert('RGB')
+    
+    # 裁剪
+    if manual_crop:
+        # 手动裁剪
+        left = manual_crop.get('left', 0)
+        top = manual_crop.get('top', 0)
+        width = manual_crop.get('width', TARGET_WIDTH)
+        height = manual_crop.get('height', TARGET_HEIGHT)
+        img = img.crop((left, top, left + width, top + height))
+        # 缩放到目标尺寸
+        img = img.resize((TARGET_WIDTH, TARGET_HEIGHT), Image.Resampling.LANCZOS)
+    else:
+        # 自动居中裁剪
+        img = crop_image(img)
+    
+    # 根据文件名判断是否需要镜像
+    if needs_mirror(filename):
+        img = mirror_image(img)
+    
+    # 输出为 JPEG
+    output = io.BytesIO()
+    img.save(output, format='JPEG', quality=95)
+    output.seek(0)
+    return output.getvalue()
+
+
+@router.post("/process")
+async def process_image(
+    file: UploadFile = File(...),
+    crop_left: Optional[int] = Form(None),
+    crop_top: Optional[int] = Form(None),
+    crop_width: Optional[int] = Form(None),
+    crop_height: Optional[int] = Form(None),
+):
+    """
+    处理单张图片
+    
+    - 自动裁剪到 4:3 (2677x2008)
+    - 文件名以 _0 或 _1 结尾时自动垂直镜像
+    - 可选：传入 crop_* 参数进行手动裁剪
+    """
+    try:
+        file_bytes = await file.read()
+        
+        # 构建手动裁剪参数
+        manual_crop = None
+        if crop_left is not None and crop_top is not None:
+            manual_crop = {
+                'left': crop_left,
+                'top': crop_top,
+                'width': crop_width or TARGET_WIDTH,
+                'height': crop_height or TARGET_HEIGHT,
+            }
+        
+        processed = process_single_image(file_bytes, file.filename, manual_crop)
+        
+        return StreamingResponse(
+            io.BytesIO(processed),
+            media_type="image/jpeg",
+            headers={
+                "Content-Disposition": f"attachment; filename={file.filename}"
+            }
         )
-        
-        if files:
-            self.image_files = list(files)
-            self.file_count_label.config(text=f"已选择 {len(self.image_files)} 个文件")
-            self.status_label.config(text="")
-    
-    def crop_image(self, img):
-        """裁剪图片到指定尺寸 (4:3)"""
-        target_width, target_height = 2677, 2008
-        width, height = img.size
-        
-        # 从中心裁剪
-        left = (width - target_width) // 2
-        top = (height - target_height) // 2
-        right = left + target_width
-        bottom = top + target_height
-        
-        # 如果图片小于目标尺寸,则调整裁剪区域
-        if width < target_width or height < target_height:
-            left = max(0, left)
-            top = max(0, top)
-            right = min(width, right)
-            bottom = min(height, bottom)
-        
-        return img.crop((left, top, right, bottom))
-    
-    def mirror_image(self, img):
-        """垂直镜像图片 (上下翻转)"""
-        return img.transpose(Image.FLIP_TOP_BOTTOM)
-    
-    def process_images(self):
-        """根据文件名自动处理图片"""
-        if not self.image_files:
-            messagebox.showwarning("警告", "请先选择图片文件!")
-            return
-        
-        # 选择输出文件夹
-        output_folder = filedialog.askdirectory(title="选择输出文件夹")
-        if not output_folder:
-            return
-        
-        success_count = 0
-        error_count = 0
-        
-        for file_path in self.image_files:
-            try:
-                # 1. 打开图片
-                img = Image.open(file_path)
-                
-                # 获取文件名和扩展名
-                filename = os.path.basename(file_path)
-                name, ext = os.path.splitext(filename)
-                
-                # 2. 所有图片统一执行：裁剪
-                img = self.crop_image(img)
-                
-                # 3. 条件判断：如果文件名以 _0 或 _1 结尾，则执行镜像
-                # 例如：TEE_06_0.jpg 会被匹配，image123.jpg 不会
-                if name.endswith("_0") or name.endswith("_1"):
-                    # print(f"正在对 {filename} 进行镜像处理...") # 调试用
-                    img = self.mirror_image(img)
-                
-                # 4. 保存 (保持原文件名)
-                output_filename = filename
-                output_path = os.path.join(output_folder, output_filename)
-                
-                img.save(output_path)
-                success_count += 1
-                
-            except Exception as e:
-                error_count += 1
-                print(f"处理文件 {file_path} 时出错: {str(e)}")
-        
-        # 显示处理结果
-        result_msg = f"处理完成!\n成功: {success_count} 个\n失败: {error_count} 个"
-        messagebox.showinfo("处理结果", result_msg)
-        self.status_label.config(text=f"已处理 {success_count} 个文件")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"图片处理失败: {str(e)}")
 
-def main():
-    root = tk.Tk()
-    app = ImageProcessorGUI(root)
-    root.mainloop()
 
-if __name__ == "__main__":
-    main()
+@router.post("/process-batch")
+async def process_batch(files: List[UploadFile] = File(...)):
+    """
+    批量处理图片，返回 ZIP 压缩包
+    
+    - 所有图片自动裁剪到 4:3 (2677x2008)
+    - 文件名以 _0 或 _1 结尾时自动垂直镜像
+    """
+    if not files:
+        raise HTTPException(status_code=400, detail="请上传至少一张图片")
+    
+    try:
+        zip_buffer = io.BytesIO()
+        
+        with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zf:
+            for file in files:
+                file_bytes = await file.read()
+                processed = process_single_image(file_bytes, file.filename)
+                zf.writestr(file.filename, processed)
+        
+        zip_buffer.seek(0)
+        
+        return StreamingResponse(
+            zip_buffer,
+            media_type="application/zip",
+            headers={
+                "Content-Disposition": "attachment; filename=processed_images.zip"
+            }
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"批量处理失败: {str(e)}")
+
+
+@router.get("/config")
+async def get_config():
+    """获取处理配置（目标尺寸）"""
+    return {
+        "target_width": TARGET_WIDTH,
+        "target_height": TARGET_HEIGHT,
+        "aspect_ratio": "4:3"
+    }

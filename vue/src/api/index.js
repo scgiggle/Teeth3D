@@ -69,5 +69,11 @@ export const downloadTaskResult = (taskId) => http.get(`/tasks/${taskId}/downloa
 // 进度查询接口（兼容旧版本）
 export const getProcessProgress = (taskId) => http.get(`/process/${taskId}/progress`)
 
+// 图片处理接口
+export const processImage = (formData) => http.post('/images/process', formData, { responseType: 'blob' })
+export const processImageBatch = (formData) => http.post('/images/process-batch', formData, { responseType: 'blob' })
+export const getImageConfig = () => http.get('/images/config')
+
+
 
 
