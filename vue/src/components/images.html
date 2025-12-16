@@ -1,0 +1,528 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>智能图片处理</title>
+    <!-- 引入 Vue 3 -->
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <!-- 引入 Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 引入 JSZip (打包下载) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <!-- 引入 FileSaver (触发下载) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+    
+    <!-- 新增：引入 Cropper.js 用于手动裁剪 -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.css" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.js"></script>
+    
+    <style>
+        /* 自定义样式 */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: #f1f1f1; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        [v-cloak] { display: none; }
+        
+        /* Cropper 样式覆盖 */
+        .cropper-view-box, .cropper-face {
+            border-radius: 0;
+        }
+        /* 限制图片在模态框中的最大高度 */
+        .modal-image-container img {
+            max-height: 60vh;
+            max-width: 100%;
+            display: block; /* Cropper 需要 block */
+        }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-700 h-screen overflow-hidden">
+
+<div id="app" v-cloak class="h-full flex flex-col max-w-6xl mx-auto p-4 md:p-6 relative">
+
+    <!-- 1. 头部区域 -->
+    <header class="mb-4 flex justify-between items-center flex-shrink-0">
+        <div>
+            <h1 class="text-2xl font-bold text-slate-800 tracking-tight">图片智能处理</h1>
+            <p class="text-sm text-slate-500 mt-1">
+                规则：自动裁剪 4:3 (2677x2008) | 
+                <span class="text-indigo-600 font-medium">自动识别 _0 / _1 进行垂直镜像</span>
+            </p>
+        </div>
+        <div v-if="files.length > 0" class="text-sm font-medium px-4 py-2 bg-white rounded-lg shadow-sm border border-slate-200">
+            已选择 <span class="text-blue-600">{{ files.length }}</span> 张图片
+        </div>
+    </header>
+
+    <!-- 2. 主体内容区 -->
+    <main class="flex-1 flex flex-col min-h-0 gap-6">
+        
+        <!-- 拖拽上传区 -->
+        <div 
+            v-if="files.length === 0"
+            @dragover.prevent="isDragging = true"
+            @dragleave.prevent="isDragging = false"
+            @drop.prevent="handleDrop"
+            :class="[
+                'flex-1 flex flex-col items-center justify-center border-2 border-dashed rounded-2xl transition-all cursor-pointer',
+                isDragging ? 'border-blue-500 bg-blue-50' : 'border-slate-300 bg-white hover:border-blue-400'
+            ]"
+            @click="triggerFileInput"
+        >
+            <input type="file" ref="fileInput" multiple accept="image/*" class="hidden" @change="handleFileSelect">
+            <div class="w-16 h-16 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center mb-4">
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                </svg>
+            </div>
+            <p class="text-lg font-medium text-slate-700">点击或拖拽图片到此处</p>
+            <p class="text-sm text-slate-400 mt-2">支持 JPG, PNG, BMP (支持批量)</p>
+        </div>
+
+        <!-- 文件列表 -->
+        <div v-else class="flex-1 min-h-0 flex flex-col bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+            <div class="px-6 py-3 border-b border-slate-100 bg-slate-50 flex text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                <div class="w-20">缩略图</div>
+                <div class="flex-1">文件名</div>
+                <div class="w-32">自动规则</div>
+                <div class="w-24 text-center">状态</div>
+                <div class="w-24 text-right">操作</div>
+            </div>
+
+            <div class="flex-1 overflow-y-auto p-2 space-y-2">
+                <div v-for="(file, index) in files" :key="index" 
+                    :class="['flex items-center p-2 rounded-lg transition-colors border border-transparent', 
+                             file.status === 'done' ? 'hover:bg-green-50 hover:border-green-100' : 'hover:bg-slate-50']">
+                    
+                    <!-- 缩略图 (处理完显示结果，未处理显示原图) -->
+                    <div class="w-20 h-16 bg-slate-100 rounded overflow-hidden flex-shrink-0 relative cursor-pointer group" @click="openPreview(file)">
+                        <img :src="file.processedUrl || file.originalUrl" class="w-full h-full object-cover">
+                        <!-- 放大镜遮罩 -->
+                        <div class="absolute inset-0 bg-black/0 group-hover:bg-black/20 flex items-center justify-center transition-all">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-white opacity-0 group-hover:opacity-100" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                            </svg>
+                        </div>
+                    </div>
+
+                    <div class="flex-1 px-4 truncate">
+                        <p class="text-sm font-medium text-slate-700 truncate">{{ file.name }}</p>
+                        <p class="text-xs text-slate-400">{{ formatSize(file.raw.size) }}</p>
+                    </div>
+
+                    <div class="w-32 flex flex-col gap-1">
+                        <span class="inline-flex w-fit items-center px-2 py-0.5 rounded text-[10px] font-medium bg-gray-100 text-gray-600">
+                            裁剪 4:3
+                        </span>
+                        <span v-if="file.needsMirror" class="inline-flex w-fit items-center px-2 py-0.5 rounded text-[10px] font-medium bg-indigo-100 text-indigo-700">
+                            ↕ 垂直镜像
+                        </span>
+                    </div>
+
+                    <div class="w-24 text-center">
+                        <span v-if="file.status === 'done'" class="text-green-600 text-xs font-bold bg-green-100 px-2 py-1 rounded-full">已完成</span>
+                        <span v-else-if="file.status === 'processing'" class="text-blue-500 text-xs animate-pulse">处理中...</span>
+                        <span v-else-if="file.status === 'pending'" class="text-slate-400 text-xs">等待中</span>
+                        <span v-else class="text-red-500 text-xs">出错</span>
+                    </div>
+
+                    <div class="w-24 text-right flex justify-end gap-2">
+                         <!-- 预览/编辑按钮 (处理完才显示) -->
+                        <button v-if="file.status === 'done'" @click="openPreview(file)" class="p-2 text-slate-400 hover:text-blue-600 transition-colors" title="查看/调整">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                            </svg>
+                        </button>
+                        <!-- 删除按钮 -->
+                        <button v-if="status !== 'processing'" @click="removeFile(index)" class="p-2 text-slate-400 hover:text-red-500 transition-colors" title="移除">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- 3. 底部操作栏 -->
+    <footer class="mt-4 border-t border-slate-200 pt-4 flex justify-between items-center flex-shrink-0" v-if="files.length > 0">
+        <button @click="clearAll" class="text-sm text-slate-500 hover:text-red-600 font-medium px-4" :disabled="status === 'processing'">
+            清空列表
+        </button>
+
+        <button 
+            @click="processAllImages"
+            :disabled="status === 'processing'"
+            :class="[
+                'flex items-center gap-2 px-8 py-3 rounded-xl font-bold shadow-lg shadow-blue-500/30 transition-all transform active:scale-95',
+                status === 'processing' ? 'bg-slate-300 cursor-not-allowed text-white' : 
+                status === 'finished' ? 'bg-green-600 hover:bg-green-700 text-white' : 'bg-blue-600 hover:bg-blue-700 text-white'
+            ]"
+        >
+            <svg v-if="status === 'processing'" class="animate-spin h-5 w-5 text-white" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+            <span v-else-if="status === 'finished'">下载全部处理结果</span>
+            <span v-else>开始智能处理 ({{ files.length }})</span>
+        </button>
+    </footer>
+
+    <!-- 4. 预览与裁剪模态框 (Modal) -->
+    <div v-if="modal.show" class="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4" @click.self="closePreview">
+        <div class="bg-white rounded-2xl overflow-hidden max-w-4xl w-full flex flex-col shadow-2xl animate-fade-in" style="max-height: 90vh;">
+            
+            <!-- Modal Header -->
+            <div class="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
+                <div>
+                    <h3 class="font-bold text-gray-800 text-lg">{{ modal.isEditing ? '手动裁剪模式' : '处理结果预览' }}</h3>
+                    <p v-if="modal.isEditing" class="text-xs text-orange-600 mt-1">请拖动选框选择区域，比例已固定 4:3</p>
+                    <p v-else class="text-xs text-gray-500 mt-1">{{ currentFile.name }} - {{ currentFile.needsMirror ? '已垂直镜像' : '仅裁剪' }}</p>
+                </div>
+                <button @click="closePreview" class="text-gray-400 hover:text-gray-600 p-2 hover:bg-gray-200 rounded-full">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+
+            <!-- Modal Body (Image Area) -->
+            <div class="flex-1 bg-gray-900 overflow-auto flex items-center justify-center relative modal-image-container p-4">
+                <!-- 1. 预览模式：显示处理后的图 -->
+                <img v-if="!modal.isEditing && currentFile.processedUrl" :src="currentFile.processedUrl" class="shadow-lg max-h-full">
+                
+                <!-- 2. 编辑模式：显示原图供裁剪 -->
+                <div v-show="modal.isEditing" class="w-full h-full">
+                    <img ref="cropperImg" :src="currentFile.originalUrl" class="max-w-full">
+                </div>
+            </div>
+
+            <!-- Modal Footer (Actions) -->
+            <div class="px-6 py-4 border-t border-gray-100 bg-white flex justify-between items-center">
+                <!-- 左侧信息 -->
+                <div class="text-sm text-gray-500">
+                    <span v-if="modal.isEditing">裁剪后会自动应用镜像规则</span>
+                </div>
+
+                <!-- 右侧按钮组 -->
+                <div class="flex gap-3">
+                    <template v-if="!modal.isEditing">
+                        <button @click="closePreview" class="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg text-sm font-medium">关闭</button>
+                        <button @click="startManualCrop" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium flex items-center gap-2">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                            </svg>
+                            手动重新裁剪
+                        </button>
+                    </template>
+                    <template v-else>
+                        <button @click="cancelManualCrop" class="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg text-sm font-medium">取消</button>
+                        <button @click="saveManualCrop" class="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium flex items-center gap-2">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                            </svg>
+                            确认并应用
+                        </button>
+                    </template>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<script>
+    const { createApp, ref, nextTick } = Vue;
+
+    createApp({
+        setup() {
+            // 数据状态
+            const files = ref([]);
+            const isDragging = ref(false);
+            const status = ref('idle'); // idle, processing, finished
+            const fileInput = ref(null);
+            
+            // 模态框状态
+            const modal = ref({
+                show: false,
+                isEditing: false
+            });
+            const currentFile = ref(null);
+            const cropperImg = ref(null);
+            let cropperInstance = null; // 存储 Cropper.js 实例
+
+            // 配置常量
+            const TARGET_WIDTH = 2677;
+            const TARGET_HEIGHT = 2008;
+
+            // --- 文件操作逻辑 ---
+
+            const triggerFileInput = () => fileInput.value.click();
+
+            const handleFileSelect = (e) => {
+                addFiles(e.target.files);
+                e.target.value = ''; 
+            };
+
+            const handleDrop = (e) => {
+                isDragging.value = false;
+                addFiles(e.dataTransfer.files);
+            };
+
+            const addFiles = (fileList) => {
+                if (status.value === 'finished') {
+                    // 如果是重新开始，不清空，而是追加，但重置状态
+                    status.value = 'idle';
+                }
+
+                Array.from(fileList).forEach(file => {
+                    // 简单去重
+                    if (files.value.some(f => f.name === file.name)) return;
+
+                    const nameNoExt = file.name.substring(0, file.name.lastIndexOf('.'));
+                    // 自动镜像规则: 文件名以 _0 或 _1 结尾
+                    const needsMirror = nameNoExt.endsWith('_0') || nameNoExt.endsWith('_1');
+                    
+                    const originalUrl = URL.createObjectURL(file);
+
+                    files.value.push({
+                        raw: file,
+                        name: file.name,
+                        originalUrl: originalUrl, // 原图 URL
+                        processedUrl: null,       // 处理后 URL (初始为空)
+                        processedBlob: null,      // 处理后 Blob
+                        needsMirror: needsMirror,
+                        status: 'pending'         // pending, processing, done, error
+                    });
+                });
+            };
+
+            const removeFile = (index) => {
+                // 释放内存
+                const f = files.value[index];
+                if(f.originalUrl) URL.revokeObjectURL(f.originalUrl);
+                if(f.processedUrl) URL.revokeObjectURL(f.processedUrl);
+                files.value.splice(index, 1);
+            };
+
+            const clearAll = () => {
+                files.value.forEach(f => {
+                    if(f.originalUrl) URL.revokeObjectURL(f.originalUrl);
+                    if(f.processedUrl) URL.revokeObjectURL(f.processedUrl);
+                });
+                files.value = [];
+                status.value = 'idle';
+            };
+
+            // --- 自动批量处理逻辑 ---
+            const processAllImages = async () => {
+                if (status.value === 'finished') {
+                    downloadZip(); // 如果已完成，点击变为下载
+                    return;
+                }
+
+                status.value = 'processing';
+                
+                // 仅处理未完成的 (pending)
+                for (let i = 0; i < files.value.length; i++) {
+                    const fileObj = files.value[i];
+                    if (fileObj.status === 'done') continue; // 跳过已手动处理或已完成的
+
+                    fileObj.status = 'processing';
+
+                    try {
+                        // 1. 自动处理 (默认居中裁剪 + 可选镜像)
+                        const blob = await processImageAuto(fileObj);
+                        
+                        // 更新结果
+                        fileObj.processedBlob = blob;
+                        fileObj.processedUrl = URL.createObjectURL(blob);
+                        fileObj.status = 'done';
+
+                    } catch (error) {
+                        console.error("处理失败:", error);
+                        fileObj.status = 'error';
+                    }
+                    
+                    // 稍微一点延迟，优化 UI 渲染
+                    await new Promise(r => setTimeout(r, 100)); 
+                }
+
+                status.value = 'finished';
+                // 自动下载
+                downloadZip();
+            };
+
+            // 自动居中裁剪处理 (模拟 Python 逻辑)
+            const processImageAuto = (fileObj) => {
+                return new Promise((resolve) => {
+                    const img = new Image();
+                    img.onload = () => {
+                        const canvas = document.createElement('canvas');
+                        canvas.width = TARGET_WIDTH;
+                        canvas.height = TARGET_HEIGHT;
+                        const ctx = canvas.getContext('2d');
+
+                        // 计算居中裁剪
+                        let left = (img.width - TARGET_WIDTH) / 2;
+                        let top = (img.height - TARGET_HEIGHT) / 2;
+                        // 确保不越界
+                        left = Math.max(0, left);
+                        top = Math.max(0, top);
+
+                        drawToCanvas(ctx, img, left, top, TARGET_WIDTH, TARGET_HEIGHT, fileObj.needsMirror);
+
+                        canvas.toBlob(blob => resolve(blob), fileObj.raw.type, 0.95);
+                    };
+                    img.src = fileObj.originalUrl;
+                });
+            };
+
+            // 通用绘制函数 (包含镜像逻辑)
+            const drawToCanvas = (ctx, imgSource, sx, sy, sw, sh, needsMirror) => {
+                ctx.save();
+                
+                // 如果需要镜像，翻转坐标系
+                if (needsMirror) {
+                    ctx.scale(1, -1); 
+                    ctx.translate(0, -TARGET_HEIGHT);
+                }
+
+                // 将源图的 (sx, sy, sw, sh) 区域绘制到画布的 (0, 0, TARGET_WIDTH, TARGET_HEIGHT)
+                ctx.drawImage(
+                    imgSource, 
+                    sx, sy, sw, sh, 
+                    0, 0, TARGET_WIDTH, TARGET_HEIGHT
+                );
+                
+                ctx.restore();
+            };
+
+            // --- 预览与手动裁剪逻辑 ---
+
+            const openPreview = (file) => {
+                if (file.status !== 'done') return; // 只有处理完的才能预览
+                currentFile.value = file;
+                modal.value.show = true;
+                modal.value.isEditing = false;
+            };
+
+            const closePreview = () => {
+                modal.value.show = false;
+                if (cropperInstance) {
+                    cropperInstance.destroy();
+                    cropperInstance = null;
+                }
+            };
+
+            // 启动手动裁剪
+            const startManualCrop = async () => {
+                modal.value.isEditing = true;
+                // 等待 DOM 更新，确保 cropperImg 元素出现
+                await nextTick();
+                
+                if (cropperInstance) cropperInstance.destroy();
+                
+                const imageElement = cropperImg.value;
+                cropperInstance = new Cropper(imageElement, {
+                    aspectRatio: 4 / 3, // 锁定比例
+                    viewMode: 1,        // 限制裁剪框不能超出图片
+                    dragMode: 'move',
+                    autoCropArea: 0.8,
+                    guides: true,
+                });
+            };
+
+            const cancelManualCrop = () => {
+                modal.value.isEditing = false;
+                if (cropperInstance) {
+                    cropperInstance.destroy();
+                    cropperInstance = null;
+                }
+            };
+
+            // 保存手动裁剪结果
+            const saveManualCrop = () => {
+                if (!cropperInstance) return;
+
+                // 1. 获取裁剪后的 Canvas (Cropper 帮我们做好了裁剪)
+                // 指定 width/height 确保输出尺寸统一
+                const croppedCanvas = cropperInstance.getCroppedCanvas({
+                    width: TARGET_WIDTH,
+                    height: TARGET_HEIGHT,
+                    imageSmoothingEnabled: true,
+                    imageSmoothingQuality: 'high',
+                });
+
+                // 2. 检查是否还需要镜像
+                // 注意：用户是对原图裁剪，如果是 _0/_1，裁剪完还得镜像
+                if (currentFile.value.needsMirror) {
+                    // 创建一个临时 Canvas 来做翻转
+                    const finalCanvas = document.createElement('canvas');
+                    finalCanvas.width = TARGET_WIDTH;
+                    finalCanvas.height = TARGET_HEIGHT;
+                    const ctx = finalCanvas.getContext('2d');
+
+                    // 垂直翻转绘制
+                    ctx.scale(1, -1);
+                    ctx.translate(0, -TARGET_HEIGHT);
+                    ctx.drawImage(croppedCanvas, 0, 0);
+
+                    // 导出最终结果
+                    finalCanvas.toBlob(blob => updateFileResult(blob), currentFile.value.raw.type, 0.95);
+                } else {
+                    // 不需要镜像，直接用裁剪结果
+                    croppedCanvas.toBlob(blob => updateFileResult(blob), currentFile.value.raw.type, 0.95);
+                }
+            };
+
+            // 更新单个文件的结果
+            const updateFileResult = (newBlob) => {
+                // 释放旧 URL
+                if (currentFile.value.processedUrl) {
+                    URL.revokeObjectURL(currentFile.value.processedUrl);
+                }
+                
+                currentFile.value.processedBlob = newBlob;
+                currentFile.value.processedUrl = URL.createObjectURL(newBlob);
+                
+                // 退出编辑模式，回到预览模式
+                cancelManualCrop(); 
+            };
+
+
+            // --- 下载逻辑 ---
+            const downloadZip = () => {
+                const zip = new JSZip();
+                
+                // 将所有成功处理的文件加入 Zip
+                files.value.forEach(f => {
+                    if (f.status === 'done' && f.processedBlob) {
+                        zip.file(f.name, f.processedBlob);
+                    }
+                });
+                
+                zip.generateAsync({type:"blob"}).then(function(content) {
+                    saveAs(content, "processed_images.zip");
+                });
+            };
+
+            const formatSize = (bytes) => {
+                if (bytes === 0) return '0 B';
+                const k = 1024;
+                const sizes = ['B', 'KB', 'MB'];
+                const i = Math.floor(Math.log(bytes) / Math.log(k));
+                return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+            };
+
+            return {
+                files, isDragging, status, fileInput, modal, currentFile, cropperImg,
+                triggerFileInput, handleFileSelect, handleDrop, removeFile, clearAll,
+                processAllImages, formatSize,
+                openPreview, closePreview, startManualCrop, cancelManualCrop, saveManualCrop
+            };
+        }
+    }).mount('#app');
+</script>
+
+</body>
+</html>
