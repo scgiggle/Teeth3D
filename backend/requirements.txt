@@ -1,4 +1,4 @@
--- Active: 1760097471215@@127.0.0.1@3306@teeth_reconstruction
+
 fastapi==0.104.1
 uvicorn[standard]==0.24.0
 python-multipart==0.0.6

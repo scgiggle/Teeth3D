@@ -7,6 +7,7 @@ import os
 from dotenv import load_dotenv
 
 from routers import auth, captcha, segmentation, models, project
+import images  # 图片处理路由（位于 backend 根目录）
 from database import get_redis
 
 load_dotenv()
@@ -71,6 +72,7 @@ app.include_router(captcha.router, prefix="/api", tags=["验证码"])
 app.include_router(segmentation.router, prefix="/api/segmentation", tags=["图像分割"])
 app.include_router(models.router, prefix="/api/model", tags=["3D模型"])
 app.include_router(project.router, prefix="/api/project", tags=["项目"])
+app.include_router(images.router, prefix="/api/images", tags=["图片处理"])
 
 @app.get("/")
 async def root():

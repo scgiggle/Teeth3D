@@ -148,6 +148,9 @@
       <el-tab-pane label="重建结果" name="models">
         <ModelCheck />
       </el-tab-pane>
+      <el-tab-pane label="数据上传" name="updata">
+        <images />
+      </el-tab-pane>
     </el-tabs>
 
   </div>
@@ -165,6 +168,7 @@ import HomePage from '../components/HomePage.vue'
 import ProcessProgress from '../components/ProcessProgress.vue'
 import ModelCheck from '../components/ModelCheck.vue'
 import ModelActions from '../components/ModelActions.vue'
+import images from '../components/images.vue'
 import { Edit, Share, Download, Delete } from '@element-plus/icons-vue'
 import * as THREE from 'three'
 import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader'
