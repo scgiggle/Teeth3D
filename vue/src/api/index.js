@@ -2,7 +2,7 @@ import axios from 'axios'
 
 export const http = axios.create({
   baseURL: 'http://localhost:8000/api',
-  timeout: 30000,
+  timeout: 300000, // 5 分钟，用于处理大批量下载
 })
 
 // 请求拦截器：添加认证token
@@ -73,7 +73,15 @@ export const getProcessProgress = (taskId) => http.get(`/process/${taskId}/progr
 export const processImage = (formData) => http.post('/images/process', formData, { responseType: 'blob' })
 export const processImageBatch = (formData) => http.post('/images/process-batch', formData, { responseType: 'blob' })
 export const getImageConfig = () => http.get('/images/config')
+export const getImageHistory = (limit = 500) => http.get('/images/history', { params: { limit } })
+export const downloadHistoryImage = (id, type = 'processed') => http.get(`/images/${id}/download`, { params: { type }, responseType: 'blob' })
+export const deleteHistoryImage = (id) => http.delete(`/images/${id}`)
 
-
-
-
+// 新增：缩略图和批次下载
+export const getImageThumbnailUrl = (id) => {
+  const token = localStorage.getItem('access_token')
+  return `http://localhost:8000/api/images/${id}/thumbnail?token=${token}`
+}
+export const downloadBatch = (batchId) => http.get(`/images/batch/${batchId}/download`, { responseType: 'blob' })
+export const deleteBatch = (batchId) => http.delete(`/images/batch/${batchId}`)
+export const deleteAllHistory = () => http.delete('/images/history/all')

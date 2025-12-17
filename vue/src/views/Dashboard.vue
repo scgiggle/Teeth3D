@@ -869,7 +869,7 @@ onMounted(() => {
 
 .dashboard {
   padding: 16px;
-  background: #f0f2f5;
+  background: linear-gradient(135deg, #4a90e2, #667eea);
   min-height: calc(100vh - 76px);
   margin: 0 8px 8px 8px;
   border-radius: 12px;

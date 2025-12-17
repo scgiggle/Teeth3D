@@ -136,6 +136,21 @@ async def get_current_user(
         raise credentials_exception
     return User(username=user_row.account, email=user_row.email or "", user_id=user_row.user_id)
 
+async def get_current_user_from_query(
+    token: Optional[str] = None,
+    redis_client: redis.Redis = Depends(get_redis),
+    db: Session = Depends(get_db)
+) -> User:
+    """从查询参数获取当前用户（用于图片直接访问等无法设置Header的场景）"""
+    if not token:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    return await get_current_user(
+        HTTPAuthorizationCredentials(scheme="Bearer", credentials=token),
+        redis_client,
+        db
+    )
+
 @router.post("/register", response_model=dict)
 async def register(
     user_data: UserRegister,

@@ -35,6 +35,18 @@ async def lifespan(app: FastAPI):
         # 不阻塞启动，只记录，以便开发时查看原因
         print(f"Warning: SAM2 model preload failed: {e}")
 
+    # 自动创建数据库表
+    try:
+        from database import engine, Base
+        # 确保所有模型都已导入，以便 SQLAlchemy 知道它们
+        import routers.auth
+        import routers.project
+        import images
+        Base.metadata.create_all(bind=engine)
+        print("Database tables created (if not exist)")
+    except Exception as e:
+        print(f"Warning: Database table creation failed: {e}")
+
     yield
     # 关闭时清理资源
     if redis_client:
